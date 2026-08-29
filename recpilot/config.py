@@ -18,6 +18,7 @@ class Budget(BaseModel):
     keep_delta: float = 1e-4
     converge_eps: float = 0.002
     converge_n: int = 3
+    exploration_min_iters: int = 10
     max_retries: int = 1
     cooldown_iters: int = 2
     regression_tol: float = 0.01

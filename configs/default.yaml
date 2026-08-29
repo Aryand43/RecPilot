@@ -9,6 +9,7 @@ budget:
   keep_delta: 0.0001
   converge_eps: 0.002
   converge_n: 3
+  exploration_min_iters: 10
   max_retries: 1
   cooldown_iters: 2
   regression_tol: 0.01

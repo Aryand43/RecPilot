@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from recpilot.agent.planner import Planner
 from recpilot.agent.safety import RunnerError, RunnerTimeout, run_in_subprocess
-from recpilot.config import ExperimentSpec, Settings, load_settings
+from recpilot.config import Budget, ExperimentSpec, Settings, load_settings
 from recpilot.harness.dataio import load_kit
 from recpilot.harness.profile import profile_splits
 from recpilot.harness.synthetic import make_synthetic
@@ -74,6 +74,27 @@ def _write_profile(session: Path, settings: Settings, synthetic: bool) -> dict:
     return prof
 
 
+def stop_reason_if_any(state: dict[str, Any], budget: Budget, elapsed: float) -> Optional[str]:
+    """Hard caps first; official ε/N convergence only after exploration_min_iters."""
+    if state["n_attempts"] >= budget.max_iters:
+        return "max_iters"
+    if elapsed >= budget.max_wall_s:
+        return "max_wall_s"
+    if state["tokens_used"] >= budget.max_tokens:
+        return "max_tokens"
+    eligible = state["n_attempts"] >= budget.exploration_min_iters
+    if eligible and state["iters_no_gain"] >= budget.converge_n:
+        return "converged"
+    return None
+
+
+def _mark_exploration(state: dict[str, Any], budget: Budget) -> None:
+    state["exploration_min_iters"] = budget.exploration_min_iters
+    done = state["n_attempts"] >= budget.exploration_min_iters
+    state["exploration_complete"] = done
+    state["convergence_eligible"] = done
+
+
 def run_session(
     settings: Optional[Settings] = None,
     max_iters: Optional[int] = None,
@@ -106,19 +127,14 @@ def run_session(
         "budget": budget.model_dump(),
     })
 
+    _mark_exploration(state, budget)
+
     while True:
         elapsed = time.time() - t0
-        if state["n_attempts"] >= budget.max_iters:
-            state["stop_reason"] = "max_iters"
-            break
-        if elapsed >= budget.max_wall_s:
-            state["stop_reason"] = "max_wall_s"
-            break
-        if state["tokens_used"] >= budget.max_tokens:
-            state["stop_reason"] = "max_tokens"
-            break
-        if state["iters_no_gain"] >= budget.converge_n and state["n_attempts"] > 0:
-            state["stop_reason"] = "converged"
+        _mark_exploration(state, budget)
+        reason = stop_reason_if_any(state, budget, elapsed)
+        if reason:
+            state["stop_reason"] = reason
             break
 
         state["cooled"] = _tick_cooldown(state.get("cooled") or {})
@@ -150,6 +166,7 @@ def run_session(
             last_error = str(e)
             state["n_errors"] += 1
             state["iters_no_gain"] += 1
+            _mark_exploration(state, budget)
             log.save_state(state)
             continue
 
@@ -262,14 +279,22 @@ def run_session(
             "seconds": round(time.time() - t_run, 2),
             "tokens": tokens,
         })
+        _mark_exploration(state, budget)
         log.save_state(state)
 
+    _mark_exploration(state, budget)
     log.append({
         "event": "session_stop",
         "stop_reason": state.get("stop_reason"),
         "best_run_id": state.get("best_run_id"),
         "best_primary_valid": state.get("best_primary_valid"),
         "wall_s": round(time.time() - t0, 2),
+        "n_attempts": state.get("n_attempts"),
+        "exploration_min_iters": budget.exploration_min_iters,
+        "exploration_complete": state.get("exploration_complete"),
+        "convergence_eligible": state.get("convergence_eligible"),
+        "converge_eps": budget.converge_eps,
+        "converge_n": budget.converge_n,
     })
     log.save_state(state)
     return {"session_dir": str(session), "state": state}

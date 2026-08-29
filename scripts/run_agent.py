@@ -41,6 +41,7 @@ def main() -> int:
             "best_run_id", "best_primary_valid", "best_metrics_valid",
             "n_attempts", "n_keeps", "n_rollbacks", "n_errors", "n_timeouts",
             "n_recoveries", "stop_reason", "baseline_reproduced",
+            "exploration_min_iters", "exploration_complete", "convergence_eligible",
         )
     }}, indent=2, default=str))
     print(f"\nLogs: {result['session_dir']}/events.jsonl")

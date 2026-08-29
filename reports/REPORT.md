@@ -1,6 +1,6 @@
 # RecPilot experiment report
 
-Session: `/Users/aryand/Desktop/RecPilot/runs/20260829_184507`
+Session: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605`
 
 ## Devpost blurb
 
@@ -23,28 +23,33 @@ Primary score = mean(GAUC, nDCG@5) from the official, unmodified `evaluate.py`.
 
 ## RecPilot-best (selected on valid only)
 
-- Best run: `0004`
+- Best run: `0009`
 - Baseline reproduced: True
 - Stop reason: `converged`
+- Exploration min iters: 10
+- Attempts: **10**
+- Exploration complete / convergence eligible: True / True
+- Stop phase: after official convergence became eligible
+- Official convergence rule remains **ε=0.002, N=3** (applied only after `exploration_min_iters`).
 
 | model | GAUC | nDCG@5 | primary |
 |---|---|---|---|
 | official FM valid | 0.6674 | 0.5357 | 0.6016 |
-| RecPilot-best valid | 0.6684 | 0.5360 | 0.6022 |
+| RecPilot-best valid | 0.6697 | 0.5365 | 0.6031 |
 | official FM test | 0.6610 | 0.5282 | 0.5946 |
-| RecPilot-best test (holdout) | 0.6624 | 0.5291 | 0.5957 |
+| RecPilot-best test (holdout) | 0.6627 | 0.5291 | 0.5959 |
 
-Official FM test primary **0.5946** vs oracle **0.8645**. RecPilot-best test primary **0.5957** (0.4% of remaining oracle gap closed).
+Official FM test primary **0.5946** vs oracle **0.8645**. RecPilot-best test primary **0.5959** (0.5% of remaining oracle gap closed).
 
 ## Autonomy and robustness
 
-- Autonomous iterations: **4**
-- Keeps / rollbacks: **2** / **2**
+- Autonomous iterations: **10** (floor `10` before ε/N can stop)
+- Keeps / rollbacks: **4** / **6**
 - Errors / timeouts: **0** / **0**
 - Auto-recoveries: **0**
 - Human interventions: **0** (target: 0 after `run_agent.py`)
 - Tokens used: 0
-- Wall clock (session_stop): 114.14s
+- Wall clock (session_stop): 374.73s
 
 Keep/rollback uses **valid primary** only. Test numbers are holdout.
 
@@ -52,10 +57,16 @@ Keep/rollback uses **valid primary** only. Test numbers are holdout.
 
 | run | operator | valid primary | decision | seconds | hypothesis |
 |---|---|---|---|---|---|
-| 0001 | `reproduce_fm` | 0.6015 | keep | 24.81 | Reproduce the official FM so every later delta is measured against a real bas... |
-| 0002 | `switch_loss_listwise` | 0.5973 | rollback | 27.63 | Listwise softmax-CE matches within-user ranking (GAUC / nDCG) better than poi... |
-| 0003 | `switch_loss_bpr` | 0.5987 | rollback | 24.62 | Pairwise BPR pushes long-view items above non-long-view items for the same user. |
-| 0004 | `add_history_crosses` | 0.6022 | keep | 37.07 | User×author and user×tab long-view rates from prior train history add crosses... |
+| 0001 | `reproduce_fm` | 0.6015 | keep | 26.08 | Reproduce the official FM so every later delta is measured against a real bas... |
+| 0002 | `switch_loss_listwise` | 0.5973 | rollback | 29.28 | Listwise softmax-CE matches within-user ranking (GAUC / nDCG) better than poi... |
+| 0003 | `switch_loss_bpr` | 0.5987 | rollback | 24.59 | Pairwise BPR pushes long-view items above non-long-view items for the same user. |
+| 0004 | `add_history_crosses` | 0.6022 | keep | 36.31 | User×author and user×tab long-view rates from prior train history add crosses... |
+| 0005 | `add_multitask` | 0.6015 | rollback | 40.82 | Click/like aux heads regularize shared embeddings for the long_view ranking h... |
+| 0006 | `blend_item_pop` | 0.6012 | rollback | 37.25 | A small blend with smoothed item popularity can lift nDCG@5 on head items. |
+| 0007 | `tune_hparams` | 0.6029 | keep | 45.09 | Small lr change around the current-best architecture; k stays 16. |
+| 0008 | `tune_hparams` | 0.6019 | rollback | 33.35 | Small lr change around the current-best architecture; k stays 16. |
+| 0009 | `tune_hparams` | 0.6031 | keep | 57.41 | Small lr change around the current-best architecture; k stays 16. |
+| 0010 | `switch_loss_listwise` | 0.5973 | rollback | 44.52 | Catalog exhausted; retry listwise from current best with slightly lower lr. |
 
 ## What we refused to try
 
@@ -65,8 +76,8 @@ Keep/rollback uses **valid primary** only. Test numbers are holdout.
 
 ## Artifacts
 
-- Events: `/Users/aryand/Desktop/RecPilot/runs/20260829_184507/events.jsonl`
-- State: `/Users/aryand/Desktop/RecPilot/runs/20260829_184507/state.json`
-- Submission: `/Users/aryand/Desktop/RecPilot/runs/20260829_184507/submission.csv`
+- Events: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605/events.jsonl`
+- State: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605/state.json`
+- Submission: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605/submission.csv`
 
 Metrics come from `kuairand-starter-kit/evaluate.py`. That file is not modified.
