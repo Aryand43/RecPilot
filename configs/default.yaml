@@ -1,0 +1,38 @@
+data_dir: ./KuaiRand-Pure/data
+runs_dir: ./runs
+
+budget:
+  max_iters: 12
+  max_wall_s: 14400
+  max_tokens: 200000
+  train_timeout_s: 600
+  keep_delta: 0.0001
+  converge_eps: 0.002
+  converge_n: 3
+  max_retries: 1
+  cooldown_iters: 2
+  regression_tol: 0.01
+
+model:
+  name: fm
+  k: 16
+  lr: 0.001
+  l2: 1.0e-6
+  epochs: 40
+  batch_size: 8192
+  patience: 4
+  seed: 0
+  blend_pop: 0.0
+  listwise_temperature: 1.0
+  aux_click_weight: 0.3
+  aux_like_weight: 0.1
+
+features:
+  use_kit_encode: true
+  history_crosses: false
+  time_features: false
+
+llm:
+  model: gpt-4o-mini
+  base_url: null
+  api_key_env: OPENAI_API_KEY
