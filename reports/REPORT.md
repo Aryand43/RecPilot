@@ -81,3 +81,28 @@ Keep/rollback uses **valid primary** only. Test numbers are holdout.
 - Submission: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605/submission.csv`
 
 Metrics come from `kuairand-starter-kit/evaluate.py`. That file is not modified.
+
+## Multi-seed audit: sequence interest (DIN-style)
+
+Grid: `runs/multiseed_20260830_075307`. **12 trains = 4 configs × 3 seeds** (`0,1,2`). Validation only; no test.
+
+The DIN model is **only 3 of those 12**. The other 9 are comparison baselines (same seeds).
+
+**Model used for `seq_interest`:** `SequenceInterest` in `recpilot/models/sequence.py` (`model.name = sequence_interest`). Not FM. Numpy, CPU. Last **N=20** train interactions (author, tab, duration bucket), recency × long_view weights (half-life 7 days), target-aware attention onto the candidate, then MLP `[user ⊕ candidate ⊕ interest] → 64 → 1` with long_view BCE. Operator: `add_sequence_interest_model`. Config id: `seq_interest`.
+
+| config | model | valid primary (mean ± sample std) | Δ vs local FM | seeds > FM |
+|---|---|---:|---:|---:|
+| `official_fm` | kit FM | 0.6014 ± 0.0003 | — | 0/3 |
+| `history_fm_lr_3e4` | FM + history crosses, lr 3e-4 | 0.6029 ± 0.0003 | +0.0014 | 3/3 |
+| `recency_hl7_lr_3e4` | FM + recency hl7, lr 3e-4 | 0.6032 ± 0.0008 | +0.0017 | 3/3 |
+| **`seq_interest`** | **SequenceInterest (DIN)** | **0.6038 ± 0.0004** | **+0.0023** | **3/3** |
+
+DIN per seed (valid only):
+
+| seed | GAUC | nDCG@5 | primary | metrics file |
+|---|---:|---:|---:|---|
+| 0 | 0.6701 | 0.5375 | 0.6038 | `runs/multiseed_20260830_075307/seq_interest/seed_0/metrics_valid.json` |
+| 1 | 0.6706 | 0.5377 | 0.6042 | `runs/multiseed_20260830_075307/seq_interest/seed_1/metrics_valid.json` |
+| 2 | 0.6696 | 0.5371 | 0.6033 | `runs/multiseed_20260830_075307/seq_interest/seed_2/metrics_valid.json` |
+
+Winner on **mean valid primary**: `seq_interest`. Not a significance claim. Full table: `runs/multiseed_20260830_075307/AUDIT.md`.
