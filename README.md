@@ -63,6 +63,21 @@ Write the judge report from the latest session:
 python3 scripts/write_report.py
 ```
 
+Validation-only multi-seed comparison (does **not** use test to pick a winner):
+
+```bash
+python3 scripts/run_multiseed.py --seeds 0,1,2
+```
+
+After choosing a winner from validation, report test metrics (post-selection only):
+
+```bash
+python3 scripts/run_multiseed.py \
+  --seeds 0,1,2 \
+  --configs history_fm_lr_3e4 \
+  --include_test
+```
+
 Check a submission with the official checker:
 
 ```bash
@@ -117,6 +132,7 @@ configs/default.yaml
 scripts/reproduce_baseline.py
 scripts/run_agent.py
 scripts/write_report.py
+scripts/run_multiseed.py
 runs/                   # session artifacts (gitignored)
 ```
 
