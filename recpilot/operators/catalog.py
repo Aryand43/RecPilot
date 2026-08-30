@@ -12,6 +12,7 @@ OPERATORS = (
     "add_history_crosses",
     "add_recency_history",
     "add_sequence_interest_model",
+    "add_deepfm_din",
     "add_multitask",
     "tune_hparams",
     "blend_item_pop",
@@ -33,6 +34,7 @@ PRIORITY = [
     "tune_hparams",
     "add_recency_history",
     "add_sequence_interest_model",
+    "add_deepfm_din",
 ]
 
 
@@ -117,6 +119,21 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
         if "half_life" in p or "seq_half_life" in p:
             cfg.model.seq_half_life = float(p.get("half_life", p.get("seq_half_life")))
         cfg.model.batch_size = int(p.get("batch_size", 4096))
+        cfg.features.use_kit_encode = False
+        return cfg
+
+    if operator == "add_deepfm_din":
+        cfg.model.name = "deepfm_din"
+        if "seq_len" in p:
+            cfg.model.seq_len = int(p["seq_len"])
+        if "play_weight" in p:
+            cfg.model.play_weight = float(p["play_weight"])
+        if "aux_click_weight" in p:
+            cfg.model.aux_click_weight = float(p["aux_click_weight"])
+        if "aux_like_weight" in p:
+            cfg.model.aux_like_weight = float(p["aux_like_weight"])
+        cfg.model.epochs = int(p.get("epochs", 20))
+        cfg.model.patience = int(p.get("patience", 3))
         cfg.features.use_kit_encode = False
         return cfg
 

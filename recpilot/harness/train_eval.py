@@ -27,7 +27,7 @@ def load_splits(cfg: Settings, synthetic: bool) -> dict[str, list]:
         or cfg.features.history_crosses
         or getattr(cfg.features, "recency_history", False)
         or cfg.features.time_features
-        or cfg.model.name in ("multitask", "sequence_interest")
+        or cfg.model.name in ("multitask", "sequence_interest", "deepfm_din")
     )
     if need_rich:
         return load_rich(data_dir)

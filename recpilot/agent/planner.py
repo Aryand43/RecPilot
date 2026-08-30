@@ -28,13 +28,14 @@ Promising directions (kit-unexplored, in this order):
 2. User-history CROSSES (user×author, user×tab rates) — not user-only terms.
 3. Recency-weighted history (`add_recency_history`, variants hl2 / hl7 / last5): recent same-creator long-views should weigh more because short-video taste drifts.
 4. Sequence interest (`add_sequence_interest_model`): last-N interactions + target-aware attention so recent same-author/tab long-views can match this candidate.
-5. Multi-task aux heads on is_click / is_like.
-6. Blend with smoothed item popularity.
-7. Tune lr / l2 / batch around the current-best architecture (do not change k).
+5. DeepFM+DIN (`add_deepfm_din`): FM+MLP backbone, DIN history, listwise long_view, click/like aux, censored play-time.
+6. Multi-task aux heads on is_click / is_like.
+7. Blend with smoothed item popularity.
+8. Tune lr / l2 / batch around the current-best architecture (do not change k).
 
 You MUST pick operator from this catalog only:
   reproduce_fm, switch_loss_bpr, switch_loss_listwise, add_history_crosses,
-  add_recency_history, add_sequence_interest_model, add_multitask, tune_hparams, blend_item_pop
+  add_recency_history, add_sequence_interest_model, add_deepfm_din, add_multitask, tune_hparams, blend_item_pop
 
 First successful run of a session should be reproduce_fm if it has not been kept yet.
 
@@ -112,6 +113,8 @@ def _heuristic_spec(state: dict[str, Any], last_error: Optional[str]) -> dict[st
             params = {"aux_click_weight": 0.3, "aux_like_weight": 0.1}
         if op == "add_sequence_interest_model":
             params = {"seq_len": 20}
+        if op == "add_deepfm_din":
+            params = {"seq_len": 20}
         return {
             "hypothesis": _default_hypothesis(op),
             "operator": op,
@@ -142,6 +145,7 @@ def _default_hypothesis(op: str) -> str:
         "add_history_crosses": "User×author and user×tab long-view rates from prior train history add crosses the 5-field FM never saw.",
         "add_recency_history": "Recent same-creator/tab long-views should weigh more than stale ones because short-video taste drifts.",
         "add_sequence_interest_model": "Last-N interactions plus target-aware attention let recent same-author/tab long-views match this candidate.",
+        "add_deepfm_din": "DeepFM plus DIN attention and listwise long_view should beat uniform FM on within-user ranking, with click/like and censored watch-time aux.",
         "add_multitask": "Click/like aux heads regularize shared embeddings for the long_view ranking head.",
         "blend_item_pop": "A small blend with smoothed item popularity can lift nDCG@5 on head items.",
         "tune_hparams": "Tune lr/l2 around the current-best model; do not increase k.",

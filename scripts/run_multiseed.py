@@ -84,6 +84,8 @@ def main() -> int:
             cache_key = "kit"
             if cfg.model.name == "sequence_interest":
                 cache_key = f"seq_{cfg.model.seq_len}"
+            elif cfg.model.name == "deepfm_din":
+                cache_key = f"deepfm_{cfg.model.seq_len}"
             elif cfg.features.history_crosses or cfg.features.recency_history or not cfg.features.use_kit_encode:
                 cache_key = f"rich_{cfg.features.recency_history}_{cfg.features.recency_variant}"
             if cache_key not in split_cache:

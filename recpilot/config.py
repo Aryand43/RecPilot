@@ -25,7 +25,7 @@ class Budget(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    name: str = "fm"  # fm | bpr | listwise | multitask | sequence_interest
+    name: str = "fm"  # fm | bpr | listwise | multitask | sequence_interest | deepfm_din
     k: int = 16
     lr: float = 0.001
     l2: float = 1e-6
@@ -39,6 +39,7 @@ class ModelConfig(BaseModel):
     aux_like_weight: float = 0.1
     seq_len: int = 20
     seq_half_life: float = 7.0
+    play_weight: float = 0.05
 
 
 class FeatureConfig(BaseModel):

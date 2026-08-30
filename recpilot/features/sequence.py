@@ -9,6 +9,8 @@ _ORD_CACHE: dict[int, int] = {}
 
 # (date_ord, author_id, tab, duration_ms, long_view)
 Event = tuple[int, str, str, float, int]
+# + is_click
+RichEvent = tuple[int, str, str, float, int, int]
 
 
 def ymd_to_ord(d: int) -> int:
@@ -54,6 +56,37 @@ def build_causal_sequences(splits: dict[str, list], seq_len: int = 20) -> dict[s
         prior = hist[u]
         out["train"].append(prior[-seq_len:] if prior else [])
         hist[u].append(_event(d))
+
+    for name in ("valid", "test"):
+        for row in splits.get(name) or []:
+            d = _as_dict(row)
+            prior = hist[str(d["user_id"])]
+            out[name].append(prior[-seq_len:] if prior else [])
+    return out
+
+
+def _rich_event(d: dict) -> RichEvent:
+    return (
+        ymd_to_ord(int(d["date"])),
+        str(d["author_id"]),
+        str(d["tab"]),
+        float(d["duration_ms"]),
+        int(d["long_view"]),
+        int(d.get("is_click", 0)),
+    )
+
+
+def build_rich_sequences(splits: dict[str, list], seq_len: int = 20) -> dict[str, list[list[RichEvent]]]:
+    """Causal last-N events including is_click. Same leak rule as build_causal_sequences."""
+    hist: dict[str, list[RichEvent]] = defaultdict(list)
+    out: dict[str, list[list[RichEvent]]] = {"train": [], "valid": [], "test": []}
+
+    for row in splits.get("train") or []:
+        d = _as_dict(row)
+        u = str(d["user_id"])
+        prior = hist[u]
+        out["train"].append(prior[-seq_len:] if prior else [])
+        hist[u].append(_rich_event(d))
 
     for name in ("valid", "test"):
         for row in splits.get(name) or []:

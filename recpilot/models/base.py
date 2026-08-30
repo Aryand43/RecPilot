@@ -70,4 +70,7 @@ def build_scorer(cfg: ModelConfig, dim: int, verbose: bool = False):
     if name == "sequence_interest":
         from recpilot.models.sequence import SequenceInterest
         return SequenceInterest(dim, cfg, verbose=verbose)
+    if name == "deepfm_din":
+        from recpilot.models.deepfm_din import DeepFMSequence
+        return DeepFMSequence(dim, cfg, verbose=verbose)
     raise ValueError(f"unknown model name: {name}")

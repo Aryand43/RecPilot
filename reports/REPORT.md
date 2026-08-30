@@ -106,3 +106,18 @@ DIN per seed (valid only):
 | 2 | 0.6696 | 0.5371 | 0.6033 | `runs/multiseed_20260830_075307/seq_interest/seed_2/metrics_valid.json` |
 
 Winner on **mean valid primary**: `seq_interest`. Not a significance claim. Full table: `runs/multiseed_20260830_075307/AUDIT.md`.
+
+## Multi-seed audit: DeepFM + DIN (`deepfm_din`)
+
+Grid (valid only, seeds 0/1/2): FM + history + current DIN vs new `DeepFMSequence` (`recpilot/models/deepfm_din.py`). Operator: `add_deepfm_din`. FM+MLP+DIN, **listwise** long_view, click/like BCE, censored log play-time. Candidate does **not** use the current impression’s `is_click` (that leaked ~0.775 and was discarded).
+
+| config | valid primary | Δ vs local FM | seeds > FM | mean s |
+|---|---:|---:|---:|---:|
+| `official_fm` | 0.6014 ± 0.0003 | — | 0/3 | 20 |
+| `history_fm_lr_3e4` | 0.6029 ± 0.0003 | +0.0014 | 3/3 | 43 |
+| **`seq_interest`** | **0.6038 ± 0.0004** | **+0.0023** | **3/3** | 355 |
+| `deepfm_din` | 0.5964 ± 0.0005 | −0.0050 | 0/3 | 137 |
+
+`deepfm_din` per seed: 0.5968 / 0.5967 / 0.5958. Same story as listwise FM (agent rollback ~0.597): listwise on this stack did not beat pointwise DIN.
+
+Audit: `runs/multiseed_20260830_152347/AUDIT.md` (baselines + DIN) and `runs/multiseed_deepfm_din_fixed/AUDIT.md` (DeepFM seeds). Combined CSV: `runs/multiseed_20260830_152347/results_per_seed.csv`.
