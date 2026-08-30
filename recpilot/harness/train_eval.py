@@ -27,7 +27,7 @@ def load_splits(cfg: Settings, synthetic: bool) -> dict[str, list]:
         or cfg.features.history_crosses
         or getattr(cfg.features, "recency_history", False)
         or cfg.features.time_features
-        or cfg.model.name == "multitask"
+        or cfg.model.name in ("multitask", "sequence_interest")
     )
     if need_rich:
         return load_rich(data_dir)
@@ -55,7 +55,10 @@ def train_and_score(
     splits_to_score = ("valid", "test") if include_test else ("valid",)
     for split in splits_to_score:
         X, y, users, _ = enc[split]
-        logits = np.asarray(scorer.predict(X), dtype=np.float64)
+        if hasattr(scorer, "predict_rows"):
+            logits = np.asarray(scorer.predict_rows(splits[split]), dtype=np.float64)
+        else:
+            logits = np.asarray(scorer.predict(X), dtype=np.float64)
         if cfg.model.blend_pop > 0:
             pop = item_pop_scores(splits["train"], splits[split])
             logits = blend_logits(logits, pop, cfg.model.blend_pop)

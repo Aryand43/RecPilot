@@ -67,4 +67,7 @@ def build_scorer(cfg: ModelConfig, dim: int, verbose: bool = False):
         return ListwiseFM(dim, cfg, verbose=verbose)
     if name == "multitask":
         return MultitaskFM(dim, cfg, verbose=verbose)
+    if name == "sequence_interest":
+        from recpilot.models.sequence import SequenceInterest
+        return SequenceInterest(dim, cfg, verbose=verbose)
     raise ValueError(f"unknown model name: {name}")

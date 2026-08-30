@@ -25,7 +25,7 @@ class Budget(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    name: str = "fm"  # fm | bpr | listwise | multitask
+    name: str = "fm"  # fm | bpr | listwise | multitask | sequence_interest
     k: int = 16
     lr: float = 0.001
     l2: float = 1e-6
@@ -37,6 +37,8 @@ class ModelConfig(BaseModel):
     listwise_temperature: float = 1.0
     aux_click_weight: float = 0.3
     aux_like_weight: float = 0.1
+    seq_len: int = 20
+    seq_half_life: float = 7.0
 
 
 class FeatureConfig(BaseModel):

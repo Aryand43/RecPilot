@@ -82,7 +82,9 @@ def main() -> int:
             if args.synthetic:
                 cfg.model.epochs = min(cfg.model.epochs, 4)
             cache_key = "kit"
-            if cfg.features.history_crosses or cfg.features.recency_history or not cfg.features.use_kit_encode:
+            if cfg.model.name == "sequence_interest":
+                cache_key = f"seq_{cfg.model.seq_len}"
+            elif cfg.features.history_crosses or cfg.features.recency_history or not cfg.features.use_kit_encode:
                 cache_key = f"rich_{cfg.features.recency_history}_{cfg.features.recency_variant}"
             if cache_key not in split_cache:
                 split_cache[cache_key] = prepare_splits(load_splits(cfg, args.synthetic), cfg.features)

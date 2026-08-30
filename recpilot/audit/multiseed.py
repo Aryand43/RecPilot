@@ -25,6 +25,7 @@ CONFIG_IDS = (
     "recency_hl2_lr_3e4",
     "recency_hl7_lr_3e4",
     "recency_last5_lr_3e4",
+    "seq_interest",
 )
 
 _HISTORY_LR = {
@@ -73,6 +74,8 @@ def settings_for(config_id: str, seed: int, data_dir: str) -> Settings:
         cfg = apply_operator(cfg, "add_history_crosses", {})
         cfg = apply_operator(cfg, "tune_hparams", {"lr": 3e-4})
         return apply_operator(cfg, "add_recency_history", {"variant": _RECENCY[config_id]})
+    if config_id == "seq_interest":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20})
     raise ValueError(config_id)
 
 

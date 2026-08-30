@@ -11,6 +11,7 @@ OPERATORS = (
     "switch_loss_listwise",
     "add_history_crosses",
     "add_recency_history",
+    "add_sequence_interest_model",
     "add_multitask",
     "tune_hparams",
     "blend_item_pop",
@@ -31,6 +32,7 @@ PRIORITY = [
     "blend_item_pop",
     "tune_hparams",
     "add_recency_history",
+    "add_sequence_interest_model",
 ]
 
 
@@ -105,6 +107,16 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
         cfg.features.history_crosses = True
         cfg.features.recency_history = True
         cfg.features.recency_variant = variant
+        cfg.features.use_kit_encode = False
+        return cfg
+
+    if operator == "add_sequence_interest_model":
+        cfg.model.name = "sequence_interest"
+        if "seq_len" in p:
+            cfg.model.seq_len = int(p["seq_len"])
+        if "half_life" in p or "seq_half_life" in p:
+            cfg.model.seq_half_life = float(p.get("half_life", p.get("seq_half_life")))
+        cfg.model.batch_size = int(p.get("batch_size", 4096))
         cfg.features.use_kit_encode = False
         return cfg
 
