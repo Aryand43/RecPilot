@@ -26,13 +26,14 @@ Organizer dead ends — NEVER propose these:
 Promising directions (kit-unexplored, in this order):
 1. Ranking losses (BPR / listwise softmax) — metric-aligned.
 2. User-history CROSSES (user×author, user×tab rates) — not user-only terms.
-3. Multi-task aux heads on is_click / is_like.
-4. Blend with smoothed item popularity.
-5. Tune lr / l2 / batch around the current-best architecture (do not change k).
+3. Recency-weighted history (`add_recency_history`, variants hl2 / hl7 / last5): recent same-creator long-views should weigh more because short-video taste drifts.
+4. Multi-task aux heads on is_click / is_like.
+5. Blend with smoothed item popularity.
+6. Tune lr / l2 / batch around the current-best architecture (do not change k).
 
 You MUST pick operator from this catalog only:
   reproduce_fm, switch_loss_bpr, switch_loss_listwise, add_history_crosses,
-  add_multitask, tune_hparams, blend_item_pop
+  add_recency_history, add_multitask, tune_hparams, blend_item_pop
 
 First successful run of a session should be reproduce_fm if it has not been kept yet.
 
@@ -79,6 +80,24 @@ def _heuristic_spec(state: dict[str, Any], last_error: Optional[str]) -> dict[st
                 "params": params,
                 "parent_run": parent,
             }
+        if op == "add_recency_history":
+            variants = ["hl2", "hl7", "last5"]
+            used = set()
+            for t in tried:
+                if t.startswith("add_recency_history:"):
+                    try:
+                        used.add(json.loads(t.split(":", 1)[1]).get("variant"))
+                    except Exception:
+                        pass
+            nxt = next((v for v in variants if v not in used), None)
+            if nxt is None:
+                continue
+            return {
+                "hypothesis": _recency_hypothesis(nxt),
+                "operator": op,
+                "params": {"variant": nxt},
+                "parent_run": parent,
+            }
         if op == "blend_item_pop" and already:
             continue
         if already and op != "tune_hparams":
@@ -105,11 +124,20 @@ def _heuristic_spec(state: dict[str, Any], last_error: Optional[str]) -> dict[st
     }
 
 
+def _recency_hypothesis(variant: str) -> str:
+    return {
+        "hl2": "Half-life 2 days: only the last few days of same-creator/tab long-views should matter if taste drifts fast.",
+        "hl7": "Half-life 7 days: a week of recency-weighted user×author/tab rates should beat uniform lifetime rates.",
+        "last5": "Last-5 window: keep only the most recent five same-creator/tab impressions so stale history cannot dominate.",
+    }.get(variant, "Weight recent same-creator long-views more than old ones.")
+
+
 def _default_hypothesis(op: str) -> str:
     return {
         "switch_loss_listwise": "Listwise softmax-CE matches within-user ranking (GAUC / nDCG) better than pointwise logloss.",
         "switch_loss_bpr": "Pairwise BPR pushes long-view items above non-long-view items for the same user.",
         "add_history_crosses": "User×author and user×tab long-view rates from prior train history add crosses the 5-field FM never saw.",
+        "add_recency_history": "Recent same-creator/tab long-views should weigh more than stale ones because short-video taste drifts.",
         "add_multitask": "Click/like aux heads regularize shared embeddings for the long_view ranking head.",
         "blend_item_pop": "A small blend with smoothed item popularity can lift nDCG@5 on head items.",
         "tune_hparams": "Tune lr/l2 around the current-best model; do not increase k.",

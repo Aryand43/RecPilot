@@ -25,6 +25,7 @@ def load_splits(cfg: Settings, synthetic: bool) -> dict[str, list]:
     need_rich = (
         (not cfg.features.use_kit_encode)
         or cfg.features.history_crosses
+        or getattr(cfg.features, "recency_history", False)
         or cfg.features.time_features
         or cfg.model.name == "multitask"
     )
@@ -39,10 +40,12 @@ def train_and_score(
     include_test: bool = False,
     run_dir: Optional[Path] = None,
     verbose: bool = False,
+    splits_prepared: bool = False,
 ) -> dict[str, Any]:
     """Fit once; always score valid. Test + submission only if include_test."""
     t0 = time.time()
-    splits = prepare_splits(splits, cfg.features)
+    if not splits_prepared:
+        splits = prepare_splits(splits, cfg.features)
     enc, dim, fields = encode_for_config(splits, cfg.features)
     scorer = build_scorer(cfg.model, dim, verbose=verbose)
     scorer.fit(enc, splits)

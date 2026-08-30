@@ -10,6 +10,7 @@ OPERATORS = (
     "switch_loss_bpr",
     "switch_loss_listwise",
     "add_history_crosses",
+    "add_recency_history",
     "add_multitask",
     "tune_hparams",
     "blend_item_pop",
@@ -29,6 +30,7 @@ PRIORITY = [
     "add_multitask",
     "blend_item_pop",
     "tune_hparams",
+    "add_recency_history",
 ]
 
 
@@ -53,6 +55,8 @@ def official_defaults() -> Settings:
     s.features.use_kit_encode = True
     s.features.history_crosses = False
     s.features.time_features = False
+    s.features.recency_history = False
+    s.features.recency_variant = "hl7"
     return s
 
 
@@ -91,6 +95,16 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
 
     if operator == "add_history_crosses":
         cfg.features.history_crosses = True
+        cfg.features.use_kit_encode = False
+        return cfg
+
+    if operator == "add_recency_history":
+        variant = str(p.get("variant", p.get("recency_variant", "hl7")))
+        if variant not in ("hl2", "hl7", "last5"):
+            raise ValueError(f"unknown recency variant {variant}")
+        cfg.features.history_crosses = True
+        cfg.features.recency_history = True
+        cfg.features.recency_variant = variant
         cfg.features.use_kit_encode = False
         return cfg
 

@@ -6,6 +6,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from recpilot.features.history import add_history_crosses
+from recpilot.features.recency import add_recency_history
 from recpilot.features.time import add_time_features
 from recpilot.harness.dataio import kit_row_to_dict
 from recpilot.paths import ensure_kit_on_path
@@ -15,6 +16,7 @@ from data import encode as kit_encode  # noqa: E402
 
 BASE_FIELDS = ["user_id", "video_id", "author_id", "tab", "dur_bucket"]
 HISTORY_FIELDS = ["ua_lv_bucket", "ut_lv_bucket", "recent_author_bucket"]
+RECENCY_FIELDS = ["ua_recency_bucket", "ut_recency_bucket"]
 TIME_FIELDS = ["hour_bucket"]
 
 
@@ -73,6 +75,8 @@ def prepare_splits(kit_or_rich: dict[str, list], features) -> dict[str, list]:
     splits = kit_or_rich
     if features.history_crosses:
         splits = add_history_crosses(splits)
+    if getattr(features, "recency_history", False):
+        splits = add_recency_history(splits, variant=getattr(features, "recency_variant", "hl7"))
     if features.time_features:
         splits = add_time_features(splits)
     return splits
@@ -80,7 +84,12 @@ def prepare_splits(kit_or_rich: dict[str, list], features) -> dict[str, list]:
 
 def encode_for_config(splits: dict[str, list], features) -> tuple[dict, int, list[str]]:
     """Kit encode when features are the official 5 fields; otherwise rich encode."""
-    use_kit = features.use_kit_encode and not features.history_crosses and not features.time_features
+    use_kit = (
+        features.use_kit_encode
+        and not features.history_crosses
+        and not features.time_features
+        and not getattr(features, "recency_history", False)
+    )
     if use_kit:
         # kit encode expects 7-tuples
         kit_splits = {}
@@ -101,6 +110,8 @@ def encode_for_config(splits: dict[str, list], features) -> tuple[dict, int, lis
     fields = list(BASE_FIELDS)
     if features.history_crosses:
         fields += HISTORY_FIELDS
+    if getattr(features, "recency_history", False):
+        fields += RECENCY_FIELDS
     if features.time_features:
         fields += TIME_FIELDS
     return encode_rich(splits, fields)

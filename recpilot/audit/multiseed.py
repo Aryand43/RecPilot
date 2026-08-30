@@ -22,7 +22,21 @@ CONFIG_IDS = (
     "history_fm_lr_1e3",
     "history_fm_lr_5e4",
     "history_fm_lr_3e4",
+    "recency_hl2_lr_3e4",
+    "recency_hl7_lr_3e4",
+    "recency_last5_lr_3e4",
 )
+
+_HISTORY_LR = {
+    "history_fm_lr_1e3": 1e-3,
+    "history_fm_lr_5e4": 5e-4,
+    "history_fm_lr_3e4": 3e-4,
+}
+_RECENCY = {
+    "recency_hl2_lr_3e4": "hl2",
+    "recency_hl7_lr_3e4": "hl7",
+    "recency_last5_lr_3e4": "last5",
+}
 
 # sample standard deviation (n-1); n==1 → 0.0
 STD_LABEL = "sample std (ddof=1)"
@@ -52,9 +66,14 @@ def settings_for(config_id: str, seed: int, data_dir: str) -> Settings:
     cfg.model.seed = seed
     if config_id == "official_fm":
         return cfg
-    cfg = apply_operator(cfg, "add_history_crosses", {})
-    lr = {"history_fm_lr_1e3": 1e-3, "history_fm_lr_5e4": 5e-4, "history_fm_lr_3e4": 3e-4}[config_id]
-    return apply_operator(cfg, "tune_hparams", {"lr": lr})
+    if config_id in _HISTORY_LR:
+        cfg = apply_operator(cfg, "add_history_crosses", {})
+        return apply_operator(cfg, "tune_hparams", {"lr": _HISTORY_LR[config_id]})
+    if config_id in _RECENCY:
+        cfg = apply_operator(cfg, "add_history_crosses", {})
+        cfg = apply_operator(cfg, "tune_hparams", {"lr": 3e-4})
+        return apply_operator(cfg, "add_recency_history", {"variant": _RECENCY[config_id]})
+    raise ValueError(config_id)
 
 
 def _mean(xs: list[float]) -> float:

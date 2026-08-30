@@ -24,6 +24,7 @@ from recpilot.audit.multiseed import (  # noqa: E402
     write_audit,
     write_csv,
 )
+from recpilot.harness.encode import prepare_splits  # noqa: E402
 from recpilot.harness.train_eval import load_splits, train_and_score  # noqa: E402
 from recpilot.paths import DEFAULT_DATA_DIR  # noqa: E402
 
@@ -80,9 +81,11 @@ def main() -> int:
             cfg = settings_for(cid, seed=seed, data_dir=args.data_dir)
             if args.synthetic:
                 cfg.model.epochs = min(cfg.model.epochs, 4)
-            cache_key = "rich" if (cfg.features.history_crosses or not cfg.features.use_kit_encode) else "kit"
+            cache_key = "kit"
+            if cfg.features.history_crosses or cfg.features.recency_history or not cfg.features.use_kit_encode:
+                cache_key = f"rich_{cfg.features.recency_history}_{cfg.features.recency_variant}"
             if cache_key not in split_cache:
-                split_cache[cache_key] = load_splits(cfg, args.synthetic)
+                split_cache[cache_key] = prepare_splits(load_splits(cfg, args.synthetic), cfg.features)
             run_dir = out_dir / cid / f"seed_{seed}"
             run_dir.mkdir(parents=True, exist_ok=True)
             spec = {
@@ -106,6 +109,7 @@ def main() -> int:
                     include_test=args.include_test,
                     run_dir=run_dir,
                     verbose=False,
+                    splits_prepared=True,
                 )
                 mv = result["metrics_valid"]
                 rec.update({

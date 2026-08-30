@@ -43,6 +43,8 @@ class FeatureConfig(BaseModel):
     use_kit_encode: bool = True
     history_crosses: bool = False
     time_features: bool = False
+    recency_history: bool = False
+    recency_variant: str = "hl7"  # hl2 | hl7 | last5
 
 
 class LLMConfig(BaseModel):
