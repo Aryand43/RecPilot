@@ -249,7 +249,7 @@ class DeepFMSequence:
             duration[i] = float(d["duration_ms"])
             now = ymd_to_ord(int(d["date"]))
             for j, ev in enumerate(evs[-nseq:]):
-                e_ord, e_a, e_t, e_dur, e_y, e_c = ev
+                e_ord, e_a, e_t, e_dur, e_y, e_c = ev[:6]
                 ha[i, j] = self._lookup(self.author_vocab, e_a)
                 ht[i, j] = self._lookup(self.tab_vocab, e_t)
                 hd[i, j] = self._dur_id(e_dur)

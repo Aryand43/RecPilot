@@ -9,8 +9,8 @@ _ORD_CACHE: dict[int, int] = {}
 
 # (date_ord, author_id, tab, duration_ms, long_view)
 Event = tuple[int, str, str, float, int]
-# + is_click
-RichEvent = tuple[int, str, str, float, int, int]
+# + is_click, is_like, play_time_ms
+RichEvent = tuple[int, str, str, float, int, int, int, float]
 
 
 def ymd_to_ord(d: int) -> int:
@@ -73,6 +73,8 @@ def _rich_event(d: dict) -> RichEvent:
         float(d["duration_ms"]),
         int(d["long_view"]),
         int(d.get("is_click", 0)),
+        int(d.get("is_like", 0)),
+        float(d.get("play_time_ms", 0) or 0),
     )
 
 

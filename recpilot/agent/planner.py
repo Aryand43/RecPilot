@@ -82,6 +82,39 @@ def _heuristic_spec(state: dict[str, Any], last_error: Optional[str]) -> dict[st
                 "params": params,
                 "parent_run": parent,
             }
+        if op == "add_sequence_interest_model":
+            variants = [
+                {"seq_len": 20},
+                {"seq_len": 10},
+                {"seq_len": 40},
+                {"seq_len": 20, "half_life": 2},
+                {"seq_len": 20, "half_life": 5},
+                {"seq_len": 20, "half_life": 14},
+                {"seq_len": 20, "engage_click": 0.3, "engage_like": 0.2, "engage_play": 0.2},
+                {"seq_len": 20, "listwise": True},
+                {"seq_len": 20, "aux": True},
+            ]
+            used = {t.split(":", 1)[1] for t in tried if t.startswith("add_sequence_interest_model:")}
+            nxt = next((v for v in variants if json.dumps(v, sort_keys=True) not in used), None)
+            if nxt is None:
+                continue
+            return {
+                "hypothesis": "Tune DIN history length, recency half-life, engagement weights, listwise, or aux on SequenceInterest.",
+                "operator": op,
+                "params": nxt,
+                "parent_run": parent,
+            }
+        if op == "blend_item_pop":
+            n = sum(1 for t in tried if t.startswith("blend_item_pop"))
+            if n >= 3:
+                continue
+            alphas = [0.1, 0.2, 0.3]
+            return {
+                "hypothesis": "A small blend with smoothed item popularity can lift nDCG@5 on head items.",
+                "operator": op,
+                "params": {"alpha": alphas[min(n, 2)]},
+                "parent_run": parent,
+            }
         if op == "add_recency_history":
             variants = ["hl2", "hl7", "last5"]
             used = set()
@@ -100,19 +133,13 @@ def _heuristic_spec(state: dict[str, Any], last_error: Optional[str]) -> dict[st
                 "params": {"variant": nxt},
                 "parent_run": parent,
             }
-        if op == "blend_item_pop" and already:
-            continue
         if already and op != "tune_hparams":
             continue
         params: dict[str, Any] = {}
-        if op == "blend_item_pop":
-            params = {"alpha": 0.2}
         if op == "switch_loss_listwise":
             params = {"temperature": 1.0}
         if op == "add_multitask":
             params = {"aux_click_weight": 0.3, "aux_like_weight": 0.1}
-        if op == "add_sequence_interest_model":
-            params = {"seq_len": 20}
         if op == "add_deepfm_din":
             params = {"seq_len": 20}
         return {

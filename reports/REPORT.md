@@ -121,3 +121,28 @@ Grid (valid only, seeds 0/1/2): FM + history + current DIN vs new `DeepFMSequenc
 `deepfm_din` per seed: 0.5968 / 0.5967 / 0.5958. Same story as listwise FM (agent rollback ~0.597): listwise on this stack did not beat pointwise DIN.
 
 Audit: `runs/multiseed_20260830_152347/AUDIT.md` (baselines + DIN) and `runs/multiseed_deepfm_din_fixed/AUDIT.md` (DeepFM seeds). Combined CSV: `runs/multiseed_20260830_152347/results_per_seed.csv`.
+
+## Multi-seed audit: SequenceInterest knobs (keep DIN)
+
+Valid only, seeds `0,1,2`. No `--include_test`. No DeepFM. Incumbent = current `seq_interest` (n=20, hl=7, pointwise BCE, no aux, blend=0): **0.6038 ± 0.0004**.
+
+Keep a change only if **both** mean valid primary > incumbent by `1e-4` **and** it wins on ≥2/3 same seeds. FM / history / DIN reused from `runs/multiseed_20260830_075307`. Pop blends scored offline from frozen DIN `scores_valid.npy`. New trains: `runs/multiseed_din_tune`.
+
+| config | valid primary | Δ vs DIN | seeds > DIN | decision |
+|---|---:|---:|---:|---|
+| **`seq_interest`** | **0.6038 ± 0.0004** | — | — | **incumbent (kept)** |
+| `seq_n10` | 0.6036 ± 0.0003 | −0.0002 | 0/3 | discard |
+| `seq_n40` | 0.6034 ± 0.0001 | −0.0004 | 0/3 | discard |
+| `seq_hl2` | 0.6036 ± 0.0002 | −0.0001 | 1/3 | discard |
+| `seq_hl5` | 0.6037 ± 0.0003 | −0.0001 | 1/3 | discard |
+| `seq_hl14` | 0.6037 ± 0.0003 | −0.00003 | 2/3 | discard (mean Δ ≤ 1e-4) |
+| `seq_engage` | 0.6036 ± 0.0003 | −0.0001 | 1/3 | discard |
+| `seq_listwise` | 0.5967 ± 0.0011 | −0.0070 | 0/3 | discard |
+| `seq_aux` | 0.6032 ± 0.0004 | −0.0006 | 0/3 | discard |
+| `seq_pop10` | 0.6032 ± 0.0006 | −0.0006 | 0/3 | discard |
+| `seq_pop20` | 0.6027 ± 0.0005 | −0.0011 | 0/3 | discard |
+| `seq_pop30` | 0.6020 ± 0.0004 | −0.0018 | 0/3 | discard |
+
+**No axis kept.** Closest was half-life 14 (2/3 seeds, mean still −0.00003). Listwise is the same rollback class as listwise FM / DeepFM (~0.597). Pop is strictly worse on the same logits. No stacked second 3-seed (need two axes that each beat DIN alone). Default `seq_interest` knobs were not mutated.
+
+Audit + CSV: `runs/multiseed_din_tune/AUDIT.md`, `runs/multiseed_din_tune/results_per_seed.csv`.

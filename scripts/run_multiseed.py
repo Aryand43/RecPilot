@@ -83,7 +83,11 @@ def main() -> int:
                 cfg.model.epochs = min(cfg.model.epochs, 4)
             cache_key = "kit"
             if cfg.model.name == "sequence_interest":
-                cache_key = f"seq_{cfg.model.seq_len}"
+                cache_key = (
+                    f"seq_{cfg.model.seq_len}_{cfg.model.seq_half_life}_"
+                    f"{cfg.model.seq_engage_click}_{cfg.model.seq_engage_like}_{cfg.model.seq_engage_play}_"
+                    f"{cfg.model.seq_listwise}_{cfg.model.seq_aux}"
+                )
             elif cfg.model.name == "deepfm_din":
                 cache_key = f"deepfm_{cfg.model.seq_len}"
             elif cfg.features.history_crosses or cfg.features.recency_history or not cfg.features.use_kit_encode:

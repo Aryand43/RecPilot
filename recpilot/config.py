@@ -40,6 +40,11 @@ class ModelConfig(BaseModel):
     seq_len: int = 20
     seq_half_life: float = 7.0
     play_weight: float = 0.05
+    seq_engage_click: float = 0.0
+    seq_engage_like: float = 0.0
+    seq_engage_play: float = 0.0
+    seq_listwise: bool = False
+    seq_aux: bool = False
 
 
 class FeatureConfig(BaseModel):

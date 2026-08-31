@@ -118,6 +118,18 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
             cfg.model.seq_len = int(p["seq_len"])
         if "half_life" in p or "seq_half_life" in p:
             cfg.model.seq_half_life = float(p.get("half_life", p.get("seq_half_life")))
+        if "engage_click" in p:
+            cfg.model.seq_engage_click = float(p["engage_click"])
+        if "engage_like" in p:
+            cfg.model.seq_engage_like = float(p["engage_like"])
+        if "engage_play" in p:
+            cfg.model.seq_engage_play = float(p["engage_play"])
+        if "listwise" in p:
+            cfg.model.seq_listwise = bool(p["listwise"])
+        if "aux" in p:
+            cfg.model.seq_aux = bool(p["aux"])
+            cfg.model.aux_click_weight = float(p.get("aux_click_weight", 0.3))
+            cfg.model.aux_like_weight = float(p.get("aux_like_weight", 0.2))
         cfg.model.batch_size = int(p.get("batch_size", 4096))
         cfg.features.use_kit_encode = False
         return cfg

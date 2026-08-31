@@ -27,6 +27,17 @@ CONFIG_IDS = (
     "recency_last5_lr_3e4",
     "seq_interest",
     "deepfm_din",
+    "seq_n10",
+    "seq_n40",
+    "seq_hl2",
+    "seq_hl5",
+    "seq_hl14",
+    "seq_engage",
+    "seq_listwise",
+    "seq_aux",
+    "seq_pop10",
+    "seq_pop20",
+    "seq_pop30",
 )
 
 _HISTORY_LR = {
@@ -79,6 +90,33 @@ def settings_for(config_id: str, seed: int, data_dir: str) -> Settings:
         return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20})
     if config_id == "deepfm_din":
         return apply_operator(cfg, "add_deepfm_din", {"seq_len": 20})
+    if config_id == "seq_n10":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 10})
+    if config_id == "seq_n40":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 40})
+    if config_id == "seq_hl2":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20, "half_life": 2})
+    if config_id == "seq_hl5":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20, "half_life": 5})
+    if config_id == "seq_hl14":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20, "half_life": 14})
+    if config_id == "seq_engage":
+        return apply_operator(cfg, "add_sequence_interest_model", {
+            "seq_len": 20, "engage_click": 0.3, "engage_like": 0.2, "engage_play": 0.2,
+        })
+    if config_id == "seq_listwise":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20, "listwise": True})
+    if config_id == "seq_aux":
+        return apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20, "aux": True})
+    if config_id == "seq_pop10":
+        cfg = apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20})
+        return apply_operator(cfg, "blend_item_pop", {"alpha": 0.1})
+    if config_id == "seq_pop20":
+        cfg = apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20})
+        return apply_operator(cfg, "blend_item_pop", {"alpha": 0.2})
+    if config_id == "seq_pop30":
+        cfg = apply_operator(cfg, "add_sequence_interest_model", {"seq_len": 20})
+        return apply_operator(cfg, "blend_item_pop", {"alpha": 0.3})
     raise ValueError(config_id)
 
 
