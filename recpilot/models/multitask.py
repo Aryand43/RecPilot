@@ -5,6 +5,7 @@ import numpy as np
 
 from recpilot.config import ModelConfig
 from recpilot.eval.wrapper import score as official_score
+from recpilot.models.base import TrainStats, es_min_delta
 from recpilot.paths import ensure_kit_on_path
 
 ensure_kit_on_path()
@@ -18,6 +19,7 @@ class MultitaskFM:
         self.cfg = cfg
         self.verbose = verbose
         self.main = FM(dim, k=cfg.k, lr=cfg.lr, l2=cfg.l2, seed=cfg.seed)
+        self.train_stats = TrainStats()
         self.W_click = np.zeros(dim, dtype=np.float32)
         self.W_like = np.zeros(dim, dtype=np.float32)
         self.b_click = np.float32(0.0)
@@ -92,8 +94,11 @@ class MultitaskFM:
         rng = np.random.default_rng(cfg.seed)
         bs = cfg.batch_size
         best, best_state, bad = -1.0, None, 0
+        min_delta = es_min_delta(cfg)
+        trained, best_epoch = 0, 0
 
         for ep in range(1, cfg.epochs + 1):
+            trained = ep
             idx = rng.permutation(len(ytr))
             losses = []
             for i in range(0, len(idx), bs):
@@ -104,8 +109,9 @@ class MultitaskFM:
                 print(
                     f"  epoch {ep:2d} | loss {np.mean(losses):.4f} | valid primary {va['primary']:.4f}"
                 )
-            if va["primary"] > best + 1e-5:
+            if va["primary"] > best + min_delta:
                 best, bad = va["primary"], 0
+                best_epoch = ep
                 best_state = (
                     self.main.V.copy(), self.main.W.copy(), np.float32(self.main.b),
                     self.W_click.copy(), self.W_like.copy(),
@@ -118,6 +124,7 @@ class MultitaskFM:
         if best_state is not None:
             (self.main.V, self.main.W, self.main.b,
              self.W_click, self.W_like, self.b_click, self.b_like) = best_state
+        self.train_stats = TrainStats(best_primary=float(best), epochs_trained=trained, best_epoch=best_epoch)
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:

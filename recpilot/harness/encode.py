@@ -89,6 +89,7 @@ def encode_for_config(splits: dict[str, list], features) -> tuple[dict, int, lis
         and not features.history_crosses
         and not features.time_features
         and not getattr(features, "recency_history", False)
+        and not getattr(features, "log_engage", False)
     )
     if use_kit:
         # kit encode expects 7-tuples

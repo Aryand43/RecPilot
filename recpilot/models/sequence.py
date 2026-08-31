@@ -10,6 +10,7 @@ from recpilot.config import ModelConfig
 from recpilot.eval.wrapper import score as official_score
 from recpilot.features.sequence import Event, build_causal_sequences, build_rich_sequences, ymd_to_ord
 from recpilot.harness.dataio import kit_row_to_dict
+from recpilot.models.base import TrainStats, es_min_delta
 
 ATT_H = 16
 MLP_H = 64
@@ -57,6 +58,7 @@ class SequenceInterest:
         self._use_rich = self.seq_aux or (self.a_click != 0 or self.a_like != 0 or self.a_play != 0)
         self._train_rows: list | None = None
         self._ready = False
+        self.train_stats = TrainStats()
 
     def fit(self, enc: dict, raw_splits: dict, eval_users_valid: bool = True) -> "SequenceInterest":
         cfg = self.cfg
@@ -90,8 +92,11 @@ class SequenceInterest:
                 mixed = [np.arange(n, dtype=np.int64)]
         best, bad = -1.0, 0
         best_state = None
+        min_delta = es_min_delta(cfg)
+        trained, best_epoch = 0, 0
 
         for ep in range(1, cfg.epochs + 1):
+            trained = ep
             losses = []
             if self.seq_listwise:
                 order = rng.permutation(len(mixed))
@@ -115,8 +120,9 @@ class SequenceInterest:
                     f"  epoch {ep:2d} | loss {float(np.mean(losses)):.4f} | "
                     f"valid primary {va_m['primary']:.4f}"
                 )
-            if va_m["primary"] > best + 1e-5:
+            if va_m["primary"] > best + min_delta:
                 best, bad = va_m["primary"], 0
+                best_epoch = ep
                 best_state = self._snapshot()
             else:
                 bad += 1
@@ -124,6 +130,7 @@ class SequenceInterest:
                     break
         if best_state is not None:
             self._restore(best_state)
+        self.train_stats = TrainStats(best_primary=float(best), epochs_trained=trained, best_epoch=best_epoch)
         self._ready = True
         return self
 

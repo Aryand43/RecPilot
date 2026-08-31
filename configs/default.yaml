@@ -12,7 +12,9 @@ budget:
   exploration_min_iters: 40
   max_retries: 1
   cooldown_iters: 2
-  regression_tol: 0.01
+  sample_iters: 0
+  sample_frac: 1.0
+  beam_size: 3
 
 model:
   name: fm

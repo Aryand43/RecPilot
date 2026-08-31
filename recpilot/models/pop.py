@@ -33,6 +33,8 @@ def pop_to_logit(p: np.ndarray) -> np.ndarray:
 
 
 def blend_logits(model_logits: np.ndarray, pop_p: np.ndarray, alpha: float) -> np.ndarray:
+    """s_final = s_model + α * log(1 + pop_rate). Cheap nDCG@5 calibration."""
     if alpha <= 0:
         return np.asarray(model_logits, dtype=np.float64)
-    return (1.0 - alpha) * np.asarray(model_logits, dtype=np.float64) + alpha * pop_to_logit(pop_p)
+    pop = np.clip(np.asarray(pop_p, dtype=np.float64), 0.0, None)
+    return np.asarray(model_logits, dtype=np.float64) + float(alpha) * np.log1p(pop)

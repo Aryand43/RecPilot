@@ -9,11 +9,20 @@ from pathlib import Path
 from typing import Any, Optional
 
 from recpilot.agent.planner import Planner
+from recpilot.agent.beam import (
+    is_full_train,
+    mark_promoted,
+    next_promotion_parent,
+    update_beam,
+)
+from recpilot.agent.fingerprint import config_fingerprint, fingerprints_equal
 from recpilot.agent.safety import RunnerError, RunnerTimeout, run_in_subprocess
 from recpilot.config import Budget, ExperimentSpec, Settings, load_settings
 from recpilot.harness.dataio import load_kit
 from recpilot.harness.profile import profile_splits
 from recpilot.harness.synthetic import make_synthetic
+from recpilot.harness.validate import validate_config
+from recpilot.log.summarize import write_session_artifacts
 from recpilot.log.tracker import RunLogger, last_k_for_planner
 from recpilot.operators.catalog import apply_operator
 from recpilot.paths import BASELINE_SCORES
@@ -30,8 +39,11 @@ def _next_run_id(n: int) -> str:
     return f"{n:04d}"
 
 
-def _tried_key(operator: str, params: dict) -> str:
-    return operator + ":" + json.dumps(params, sort_keys=True, default=str)
+def _tried_key(operator: str, params: dict, parent: Optional[str] = None) -> str:
+    body = operator + ":" + json.dumps(params, sort_keys=True, default=str)
+    if parent:
+        return f"{parent}|{body}"
+    return body
 
 
 def _tick_cooldown(cooled: dict[str, int]) -> dict[str, int]:
@@ -41,6 +53,19 @@ def _tick_cooldown(cooled: dict[str, int]) -> dict[str, int]:
         if nv > 0:
             out[k] = nv
     return out
+
+
+def _load_parent_primary(session: Path, parent_id: Optional[str]) -> Optional[float]:
+    if not parent_id:
+        return None
+    path = session / parent_id / "result.json"
+    if not path.exists():
+        return None
+    try:
+        metrics = json.loads(path.read_text()).get("metrics_valid") or {}
+        return float(metrics["primary"])
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+        return None
 
 
 def _load_parent_settings(session: Path, parent_id: Optional[str], fallback: Settings) -> Settings:
@@ -119,6 +144,12 @@ def run_session(
     t0 = time.time()
     last_error: Optional[str] = None
     retry_for_error = 0
+    state["sample_iters"] = budget.sample_iters
+    state.setdefault("beam", [])
+    state.setdefault("promoted", [])
+    state.setdefault("ablation_done", [])
+    state.setdefault("noops", [])
+    state.setdefault("fm_run_id", None)
 
     log.append({
         "event": "session_start",
@@ -139,8 +170,38 @@ def run_session(
 
         state["cooled"] = _tick_cooldown(state.get("cooled") or {})
         recent = last_k_for_planner(log.read_events(), 8)
-        spec_dict, tokens, source = planner.propose(state, profile, recent, last_error)
+
+        # After a subsampled phase, retrain subsampled beam members on 100%.
+        # Disabled when sample_iters is 0 (always full-data).
+        promo_spec = None
+        if (
+            budget.sample_iters > 0
+            and state.get("baseline_reproduced")
+            and state["n_attempts"] >= budget.sample_iters
+        ):
+            promo_parent = next_promotion_parent(session, state)
+            if promo_parent:
+                promo_spec = {
+                    "hypothesis": "Retrain a beam member on 100% train after subsampled exploration.",
+                    "operator": "retrain_full_data",
+                    "params": {},
+                    "parent_run": promo_parent,
+                    "_children_generated": [],
+                }
+
+        if promo_spec is not None:
+            spec_dict, tokens, source = promo_spec, 0, "heuristic"
+        else:
+            spec_dict, tokens, source = planner.propose(state, profile, recent, last_error)
         state["tokens_used"] += tokens
+        stop = spec_dict.pop("_stop_reason", None)
+        if stop:
+            state["stop_reason"] = stop
+            break
+        children_generated = spec_dict.pop("_children_generated", None) or []
+        ablation_id = spec_dict.pop("_ablation_id", None)
+        if ablation_id is None and spec_dict.get("operator") == "run_ablation":
+            ablation_id = (spec_dict.get("params") or {}).get("id")
 
         parent_id = spec_dict.get("parent_run") or state.get("best_run_id")
         parent_cfg = _load_parent_settings(session, parent_id, settings)
@@ -156,6 +217,7 @@ def run_session(
             cfg = apply_operator(parent_cfg, spec_dict["operator"], spec_dict.get("params") or {})
             if synthetic:
                 cfg.model.epochs = min(cfg.model.epochs, 4)
+            validate_config(cfg)
         except ValueError as e:
             log.append({
                 "event": "rejected_spec",
@@ -170,8 +232,32 @@ def run_session(
             log.save_state(state)
             continue
 
+        if parent_id and fingerprints_equal(cfg, parent_cfg):
+            log.append({
+                "event": "rejected_spec",
+                "error": "duplicate fingerprint",
+                "spec": spec_dict,
+                "planner": source,
+            })
+            tried = list(state.get("tried") or [])
+            tried.append(_tried_key(spec_dict["operator"], spec_dict.get("params") or {}, parent_id))
+            state["tried"] = tried
+            last_error = "duplicate fingerprint"
+            state["iters_no_gain"] += 1
+            _mark_exploration(state, budget)
+            log.save_state(state)
+            continue
+
         state["n_attempts"] += 1
         run_id = _next_run_id(state["n_attempts"])
+        # reproduce_fm stays on 100% so the official gate is comparable.
+        # sample_iters=0 (this push) means every post-FM iter is also 100%.
+        always_full = (
+            spec_dict["operator"] in ("reproduce_fm", "retrain_full_data", "run_ablation")
+            or budget.sample_iters <= 0
+            or state["n_attempts"] > budget.sample_iters
+        )
+        cfg.model.train_frac = 1.0 if always_full else float(budget.sample_frac)
         run_dir = session / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         spec = ExperimentSpec(
@@ -188,21 +274,38 @@ def run_session(
         t_run = time.time()
         decision = "rollback"
         metrics_valid = None
+        metrics_test = None
         error = None
         recovery = None
+        train_rows_used = None
+        epochs_trained = None
+        checkpoint_used = False
+        children_kept: list[str] = []
         try:
             run_in_subprocess(run_dir, budget.train_timeout_s, synthetic=synthetic)
             result = json.loads((run_dir / "result.json").read_text())
             metrics_valid = result["metrics_valid"]
+            metrics_test = result.get("metrics_test")
             primary = float(metrics_valid["primary"])
+            train_rows_used = result.get("train_rows_used")
+            epochs_trained = result.get("epochs_trained")
+            checkpoint_used = bool(result.get("checkpoint_loaded_from_parent"))
             last_error = None
             retry_for_error = 0
 
             if spec.operator == "reproduce_fm":
                 state["baseline_reproduced"] = True
+                state["fm_run_id"] = run_id
+            if is_full_train(float(cfg.model.train_frac or 1.0)):
+                mark_promoted(state, run_id)
+            if spec.operator == "retrain_full_data" and spec.parent_run:
+                mark_promoted(state, spec.parent_run)
 
             delta = primary - float(state["best_primary_valid"])
-            if primary > float(state["best_primary_valid"]) + budget.keep_delta:
+            # Subsampled scores are not comparable to full-data FM; never keep them
+            # as the official best / submission. They still enter the beam.
+            can_keep = is_full_train(float(cfg.model.train_frac or 1.0))
+            if can_keep and primary > float(state["best_primary_valid"]) + budget.keep_delta:
                 decision = "keep"
                 state["best_primary_valid"] = primary
                 state["best_run_id"] = run_id
@@ -229,6 +332,14 @@ def run_session(
                     cooled[spec.operator] = budget.cooldown_iters
                     state["cooled"] = cooled
                     recovery = f"cooldown {spec.operator} for {budget.cooldown_iters} iters (regression)"
+            children_kept = update_beam(
+                state, run_id, primary, spec.operator, spec.parent_run,
+                size=budget.beam_size,
+                train_frac=float(cfg.model.train_frac or 1.0),
+                fingerprint=config_fingerprint(cfg),
+                parent_primary=_load_parent_primary(session, spec.parent_run),
+                parent_fingerprint=config_fingerprint(parent_cfg) if spec.parent_run else None,
+            )
         except RunnerTimeout as e:
             error = f"timeout: {e}"
             last_error = error
@@ -260,8 +371,13 @@ def run_session(
                 state["cooled"] = cooled
 
         tried = list(state.get("tried") or [])
-        tried.append(_tried_key(spec.operator, spec.params))
+        tried.append(_tried_key(spec.operator, spec.params, spec.parent_run))
         state["tried"] = tried
+        if ablation_id and decision in ("keep", "rollback"):
+            done = list(state.get("ablation_done") or [])
+            if str(ablation_id) not in done:
+                done.append(str(ablation_id))
+            state["ablation_done"] = done
 
         log.append({
             "event": "iteration",
@@ -272,20 +388,30 @@ def run_session(
             "parent_run": spec.parent_run,
             "planner": source,
             "metrics_valid": metrics_valid,
+            "metrics_test": metrics_test,
             "decision": decision,
             "error": error,
             "recovery": recovery,
             "retry": spec.retry,
             "seconds": round(time.time() - t_run, 2),
+            "seconds_per_iter": round(time.time() - t_run, 2),
             "tokens": tokens,
+            "train_rows_used": train_rows_used,
+            "epochs_trained": epochs_trained,
+            "checkpoint_used": checkpoint_used,
+            "beam_configs": state.get("beam_configs"),
+            "children_generated": children_generated,
+            "children_kept": children_kept,
         })
         _mark_exploration(state, budget)
         log.save_state(state)
+        write_session_artifacts(session, state)
         prim = (metrics_valid or {}).get("primary")
         print(
             f"[{run_id}] {spec.operator} {decision} "
             f"valid_primary={prim} seconds={round(time.time() - t_run, 2)} "
-            f"planner={source} best={state.get('best_primary_valid')}",
+            f"planner={source} best={state.get('best_primary_valid')} "
+            f"rows={train_rows_used} ckpt={checkpoint_used}",
             flush=True,
         )
 
@@ -302,6 +428,9 @@ def run_session(
         "convergence_eligible": state.get("convergence_eligible"),
         "converge_eps": budget.converge_eps,
         "converge_n": budget.converge_n,
+        "tokens_used": state.get("tokens_used"),
+        "n_human_interventions": state.get("n_human_interventions", 0),
     })
     log.save_state(state)
+    write_session_artifacts(session, state)
     return {"session_dir": str(session), "state": state}

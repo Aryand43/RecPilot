@@ -22,10 +22,13 @@ class Budget(BaseModel):
     max_retries: int = 1
     cooldown_iters: int = 2
     regression_tol: float = 0.01
+    sample_iters: int = 0
+    sample_frac: float = 1.0
+    beam_size: int = 3
 
 
 class ModelConfig(BaseModel):
-    name: str = "fm"  # fm | bpr | listwise | multitask | sequence_interest | deepfm_din
+    name: str = "fm"  # fm | bpr | listwise | multitask | sequence_interest | deepfm_din | watch_time
     k: int = 16
     lr: float = 0.001
     l2: float = 1e-6
@@ -45,6 +48,9 @@ class ModelConfig(BaseModel):
     seq_engage_play: float = 0.0
     seq_listwise: bool = False
     seq_aux: bool = False
+    train_frac: float = 1.0
+    es_min_delta: float = 1e-5
+    hard_neg_weight: float = 1.0
 
 
 class FeatureConfig(BaseModel):
@@ -53,6 +59,7 @@ class FeatureConfig(BaseModel):
     time_features: bool = False
     recency_history: bool = False
     recency_variant: str = "hl7"  # hl2 | hl7 | last5
+    log_engage: bool = False
 
 
 class LLMConfig(BaseModel):

@@ -32,7 +32,7 @@ def make_synthetic(n_users: int = 24, n_videos: int = 16, seed: int = 0) -> dict
     return {
         "train": draw(20220408, 20220421, 400, pref),
         "valid": draw(20220422, 20220428, 120, pref),
-        "test": draw(20220429, 20220508, 120, pref),
+        "test": draw(20220501, 20220508, 120, pref),
     }
 
 

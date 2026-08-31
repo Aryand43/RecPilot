@@ -6,7 +6,7 @@ from collections import defaultdict
 import numpy as np
 
 from recpilot.config import ModelConfig
-from recpilot.models.base import early_stop_train
+from recpilot.models.base import TrainStats, early_stop_train, es_min_delta
 from recpilot.paths import ensure_kit_on_path
 
 ensure_kit_on_path()
@@ -61,6 +61,7 @@ class BPRFM:
         self.cfg = cfg
         self.verbose = verbose
         self.model = FM(dim, k=cfg.k, lr=cfg.lr, l2=cfg.l2, seed=cfg.seed)
+        self.train_stats = TrainStats()
 
     def step_bpr(self, Xpos: np.ndarray, Xneg: np.ndarray) -> float:
         m = self.model
@@ -93,7 +94,10 @@ class BPRFM:
                 losses.append(self.step_bpr(Xtr[pos[i:i + bs]], Xtr[neg[i:i + bs]]))
             return float(np.mean(losses)) if losses else 0.0
 
-        early_stop_train(self.model, epoch, Xva, yva, uva, cfg.epochs, cfg.patience, self.verbose)
+        self.train_stats = early_stop_train(
+            self.model, epoch, Xva, yva, uva, cfg.epochs, cfg.patience, self.verbose,
+            min_delta=es_min_delta(cfg),
+        )
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -112,6 +116,7 @@ class ListwiseFM:
         self.cfg = cfg
         self.verbose = verbose
         self.model = FM(dim, k=cfg.k, lr=cfg.lr, l2=cfg.l2, seed=cfg.seed)
+        self.train_stats = TrainStats()
 
     def step_lists(self, groups: list[tuple[np.ndarray, np.ndarray]]) -> float:
         """Softmax CE over each user's impression list; one concatenated logits call."""
@@ -168,7 +173,10 @@ class ListwiseFM:
                 losses.append(self.step_lists(groups))
             return float(np.mean(losses)) if losses else 0.0
 
-        early_stop_train(self.model, epoch, Xva, yva, uva, cfg.epochs, cfg.patience, self.verbose)
+        self.train_stats = early_stop_train(
+            self.model, epoch, Xva, yva, uva, cfg.epochs, cfg.patience, self.verbose,
+            min_delta=es_min_delta(cfg),
+        )
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:

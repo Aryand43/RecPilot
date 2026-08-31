@@ -16,6 +16,10 @@ OPERATORS = (
     "add_multitask",
     "tune_hparams",
     "blend_item_pop",
+    "add_hard_negatives",
+    "retrain_full_data",
+    "run_ablation",
+    "add_watch_time_ranker",
 )
 
 BANNED = {
@@ -24,18 +28,29 @@ BANNED = {
     "user_only_first_order": "Within-user ranking: user-constant terms do not change order.",
 }
 
+# Search order for heuristic / beam children. retrain_full_data is injected by the loop.
 PRIORITY = [
     "reproduce_fm",
     "add_history_crosses",
     "add_recency_history",
-    "add_sequence_interest_model",
     "tune_hparams",
+    "blend_item_pop",
     "switch_loss_listwise",
+    "add_hard_negatives",
+    "add_sequence_interest_model",
     "switch_loss_bpr",
     "add_multitask",
-    "blend_item_pop",
     "add_deepfm_din",
 ]
+
+FM_FEATURE_OPS = frozenset({
+    "add_history_crosses",
+    "add_recency_history",
+    "switch_loss_bpr",
+    "switch_loss_listwise",
+    "add_hard_negatives",
+})
+SEQUENCE_FAMILY = frozenset({"sequence_interest", "deepfm_din"})
 
 
 def banned_reason(operator: str, params: dict[str, Any]) -> Optional[str]:
@@ -55,13 +70,23 @@ def official_defaults() -> Settings:
     s.model.epochs = 40
     s.model.batch_size = 8192
     s.model.patience = 4
+    s.model.es_min_delta = 1e-5
     s.model.blend_pop = 0.0
+    s.model.train_frac = 1.0
+    s.model.hard_neg_weight = 1.0
     s.features.use_kit_encode = True
     s.features.history_crosses = False
     s.features.time_features = False
     s.features.recency_history = False
     s.features.recency_variant = "hl7"
     return s
+
+
+def _exploration_es(cfg: Settings) -> Settings:
+    # Must be <= keep_delta (1e-4). 5e-4 starved warm-start children at 6 epochs.
+    cfg.model.es_min_delta = 1e-5
+    cfg.model.patience = max(int(cfg.model.patience), 5)
+    return cfg
 
 
 def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> Settings:
@@ -75,6 +100,19 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
     cfg = parent.model_copy(deep=True)
     p = dict(params or {})
 
+    if operator in FM_FEATURE_OPS and parent.model.name in SEQUENCE_FAMILY:
+        raise ValueError(
+            f"no-op: {operator} does nothing on {parent.model.name} "
+            "(FM feature/loss flags are ignored)"
+        )
+
+    if operator == "run_ablation":
+        from recpilot.agent.ablation import ablation_by_id
+        item = ablation_by_id(str(p.get("id", "")))
+        for inner_op, inner_p in item["ops"]:
+            cfg = apply_operator(cfg, inner_op, dict(inner_p))
+        return cfg
+
     if operator == "reproduce_fm":
         base = official_defaults()
         base.data_dir = cfg.data_dir
@@ -87,7 +125,7 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
         cfg.model.name = "bpr"
         if "lr" in p:
             cfg.model.lr = float(p["lr"])
-        return cfg
+        return _exploration_es(cfg)
 
     if operator == "switch_loss_listwise":
         cfg.model.name = "listwise"
@@ -95,22 +133,26 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
             cfg.model.lr = float(p["lr"])
         if "temperature" in p:
             cfg.model.listwise_temperature = float(p["temperature"])
-        return cfg
+        return _exploration_es(cfg)
 
     if operator == "add_history_crosses":
         cfg.features.history_crosses = True
         cfg.features.use_kit_encode = False
-        return cfg
+        return _exploration_es(cfg)
 
     if operator == "add_recency_history":
-        variant = str(p.get("variant", p.get("recency_variant", "hl7")))
-        if variant not in ("hl2", "hl7", "last5"):
+        variant = str(p.get("variant", p.get("recency_variant", p.get("hl", "hl7"))))
+        if variant in ("2", "hl2"):
+            variant = "hl2"
+        elif variant in ("7", "hl7"):
+            variant = "hl7"
+        elif variant not in ("hl2", "hl7", "last5"):
             raise ValueError(f"unknown recency variant {variant}")
         cfg.features.history_crosses = True
         cfg.features.recency_history = True
         cfg.features.recency_variant = variant
         cfg.features.use_kit_encode = False
-        return cfg
+        return _exploration_es(cfg)
 
     if operator == "add_sequence_interest_model":
         cfg.model.name = "sequence_interest"
@@ -132,7 +174,7 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
             cfg.model.aux_like_weight = float(p.get("aux_like_weight", 0.2))
         cfg.model.batch_size = int(p.get("batch_size", 4096))
         cfg.features.use_kit_encode = False
-        return cfg
+        return _exploration_es(cfg)
 
     if operator == "add_deepfm_din":
         cfg.model.name = "deepfm_din"
@@ -147,7 +189,7 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
         cfg.model.epochs = int(p.get("epochs", 20))
         cfg.model.patience = int(p.get("patience", 3))
         cfg.features.use_kit_encode = False
-        return cfg
+        return _exploration_es(cfg)
 
     if operator == "add_multitask":
         cfg.model.name = "multitask"
@@ -155,8 +197,8 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
             cfg.model.aux_click_weight = float(p["aux_click_weight"])
         if "aux_like_weight" in p:
             cfg.model.aux_like_weight = float(p["aux_like_weight"])
-        cfg.features.use_kit_encode = False  # need aux labels
-        return cfg
+        cfg.features.use_kit_encode = False
+        return _exploration_es(cfg)
 
     if operator == "tune_hparams":
         if "lr" in p:
@@ -167,11 +209,24 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
             cfg.model.batch_size = int(p["batch_size"])
         if "epochs" in p:
             cfg.model.epochs = int(p["epochs"])
-        # k is intentionally ignored even if the LLM sends it
-        return cfg
+        return _exploration_es(cfg)
 
     if operator == "blend_item_pop":
-        cfg.model.blend_pop = float(p.get("alpha", p.get("blend_pop", 0.25)))
+        cfg.model.blend_pop = float(p.get("alpha", p.get("blend_pop", 0.1)))
+        return _exploration_es(cfg)
+
+    if operator == "add_hard_negatives":
+        cfg.model.hard_neg_weight = float(p.get("weight", 2.0))
+        return _exploration_es(cfg)
+
+    if operator == "retrain_full_data":
+        cfg.model.train_frac = 1.0
+        return cfg
+
+    if operator == "add_watch_time_ranker":
+        cfg.model.name = "watch_time"
+        cfg.features.log_engage = True
+        cfg.features.use_kit_encode = False
         return cfg
 
     raise ValueError(operator)

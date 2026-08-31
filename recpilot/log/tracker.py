@@ -67,6 +67,13 @@ def default_state() -> dict[str, Any]:
         "exploration_min_iters": 40,
         "exploration_complete": False,
         "convergence_eligible": False,
+        "beam": [],
+        "beam_configs": [],
+        "promoted": [],
+        "sample_iters": 0,
+        "ablation_done": [],
+        "noops": [],
+        "fm_run_id": None,
     }
 
 
@@ -85,5 +92,8 @@ def last_k_for_planner(events: list[dict[str, Any]], k: int = 8) -> list[dict[st
             "seconds": ev.get("seconds"),
             "retry": ev.get("retry"),
             "recovery": ev.get("recovery"),
+            "train_rows_used": ev.get("train_rows_used"),
+            "checkpoint_used": ev.get("checkpoint_used"),
+            "parent_run": ev.get("parent_run"),
         })
     return slim

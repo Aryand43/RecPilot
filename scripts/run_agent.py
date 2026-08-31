@@ -26,6 +26,7 @@ def main() -> int:
     ap.add_argument("--synthetic", action="store_true", help="Tiny fake data; smoke-test the loop")
     ap.add_argument("--data_dir", default=None)
     ap.add_argument("--train_timeout_s", type=float, default=None)
+    ap.add_argument("--session_dir", default=None, help="Resume an existing session directory")
     args = ap.parse_args()
 
     settings = load_settings(Path(args.config))
@@ -43,7 +44,12 @@ def main() -> int:
         print("Pass --synthetic to smoke-test, or download KuaiRand-Pure (see README).", file=sys.stderr)
         return 2
 
-    result = run_session(settings, max_iters=args.max_iters, synthetic=args.synthetic)
+    result = run_session(
+        settings,
+        max_iters=args.max_iters,
+        synthetic=args.synthetic,
+        session_dir=Path(args.session_dir) if args.session_dir else None,
+    )
     print(json.dumps({"session_dir": result["session_dir"], "state": {
         k: result["state"][k] for k in (
             "best_run_id", "best_primary_valid", "best_metrics_valid",
