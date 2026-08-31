@@ -13,6 +13,7 @@ from recpilot.eval.wrapper import metrics_public, score
 from recpilot.harness.checkpoint import load_checkpoint, save_checkpoint
 from recpilot.harness.dataio import as_kit_rows, load_kit, load_rich
 from recpilot.harness.encode import encode_for_config, prepare_splits
+from recpilot.harness.leakguard import assert_no_outcome_fields, mask_outcomes
 from recpilot.harness.sample import stratified_subsample
 from recpilot.harness.synthetic import make_synthetic, to_rich
 from recpilot.models import build_scorer
@@ -26,8 +27,7 @@ def _need_rich(cfg: Settings) -> bool:
         or cfg.features.history_crosses
         or getattr(cfg.features, "recency_history", False)
         or cfg.features.time_features
-        or bool(getattr(cfg.features, "log_engage", False))
-        or cfg.model.name in ("multitask", "sequence_interest", "deepfm_din", "watch_time")
+        or cfg.model.name in ("multitask", "sequence_interest", "deepfm_din", "gbdt", "blend")
         or float(getattr(cfg.model, "hard_neg_weight", 1.0) or 1.0) > 1.0
     )
 
@@ -77,6 +77,8 @@ def train_model(
 ) -> tuple[Any, dict[str, Any]]:
     """Fit one scorer. Warm-starts from parent checkpoint when shapes match."""
     scorer = build_scorer(config.model, data["dim"], verbose=verbose)
+    if hasattr(scorer, "set_data_dir"):
+        scorer.set_data_dir(config.resolved_data_dir())
     loaded = False
     if checkpoint_path is not None:
         loaded = load_checkpoint(scorer, checkpoint_path)
@@ -101,7 +103,11 @@ def evaluate_and_save(
     include_test: bool = False,
     train_meta: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    """Score valid (always) and test (opt-in). Write result.json / submission / checkpoint."""
+    """Score valid (always) and test (opt-in). Write result.json / submission / checkpoint.
+
+    Scoring test produces submission.csv from predictions alone. Test *labels* are
+    read only when `budget.report_test_metrics` is set, which scored runs leave off.
+    """
     splits = data["splits"]
     enc = data["enc"]
     kit_rows = as_kit_rows(splits)
@@ -114,25 +120,35 @@ def evaluate_and_save(
     if train_meta:
         out.update(train_meta)
 
+    assert_no_outcome_fields(data["fields"])
     splits_to_score = ("valid", "test") if include_test else ("valid",)
     for split in splits_to_score:
         X, y, users, _ = enc[split]
-        if hasattr(model, "predict_rows"):
-            logits = np.asarray(model.predict_rows(splits[split]), dtype=np.float64)
+        if hasattr(model, "predict_ensemble"):
+            logits = np.asarray(
+                model.predict_ensemble(X, users, mask_outcomes(splits[split])), dtype=np.float64)
+        elif hasattr(model, "predict_rows"):
+            # Outcome columns are stripped before the rows reach the scorer, so a
+            # model that reads the scored row's own play_time / engagement raises
+            # instead of silently leaking the label. Train rows are untouched.
+            rows = splits[split] if split == "train" else mask_outcomes(splits[split])
+            logits = np.asarray(model.predict_rows(rows), dtype=np.float64)
         else:
             logits = np.asarray(model.predict(X), dtype=np.float64)
         if config.model.blend_pop > 0:
             pop = item_pop_scores(splits["train"], splits[split])
             logits = blend_logits(logits, pop, config.model.blend_pop)
-        metrics = score(users, y, logits)
+        report = split == "valid" or bool(getattr(config.budget, "report_test_metrics", False))
+        metrics = score(users, y, logits) if report else None
         if run_dir is not None:
             run_dir.mkdir(parents=True, exist_ok=True)
             np.save(run_dir / f"scores_{split}.npy", logits)
-            (run_dir / f"metrics_{split}.json").write_text(json.dumps(metrics, indent=2))
+            if metrics is not None:
+                (run_dir / f"metrics_{split}.json").write_text(json.dumps(metrics, indent=2))
         if split == "valid":
             out["metrics_valid"] = metrics_public(metrics)
         else:
-            out["metrics_test"] = metrics_public(metrics)
+            out["metrics_test"] = metrics_public(metrics) if metrics is not None else None
             if run_dir is not None:
                 sub = run_dir / "submission.csv"
                 write_scores(sub, kit_rows["test"], logits)

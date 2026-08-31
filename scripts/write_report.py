@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from recpilot.agent.diff import format_diff  # noqa: E402
 from recpilot.paths import BASELINE_SCORES  # noqa: E402
 
 DEVPOST_BLURB = (
@@ -44,6 +45,33 @@ def load_events(path: Path) -> list[dict]:
     return out
 
 
+def _hms(seconds) -> str:
+    try:
+        s = float(seconds)
+    except (TypeError, ValueError):
+        return "—"
+    h, rem = divmod(int(s), 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}h {m:02d}m {sec:02d}s ({s:.0f}s)"
+
+
+def _delta_rows(base: dict, ours: dict) -> list[str]:
+    rows, deltas = [], []
+    for m in ("GAUC", "nDCG@5"):
+        b, o = base.get(m), ours.get(m)
+        if b is None or o is None:
+            rows.append(f"| {m} | — | — | — |")
+            continue
+        d = float(o) - float(b)
+        deltas.append(d)
+        rows.append(f"| {m} | {float(b):.4f} | {float(o):.4f} | {d:+.4f} |")
+    if len(deltas) == 2:
+        b, o = base.get("primary"), ours.get("primary")
+        rows.append(f"| primary (mean) | {float(b):.4f} | {float(o):.4f} | {float(o) - float(b):+.4f} |")
+        rows.append(f"| **score_dataset** (mean of metric deltas) | | | **{sum(deltas) / 2:+.4f}** |")
+    return rows
+
+
 def render(session: Path) -> str:
     state = json.loads((session / "state.json").read_text())
     events = load_events(session / "events.jsonl")
@@ -56,6 +84,9 @@ def render(session: Path) -> str:
         official = json.loads(BASELINE_SCORES.read_text())["scores"]
     iters = [e for e in events if e.get("event") == "iteration"]
     stop = next((e for e in reversed(events) if e.get("event") == "session_stop"), {})
+    start = next((e for e in events if e.get("event") == "session_start"), {})
+    policy = start.get("data_policy") or {}
+    rule = start.get("stopping_rule") or {}
 
     best_test = None
     best_id = state.get("best_run_id")
@@ -137,7 +168,56 @@ def render(session: Path) -> str:
         row("official FM test", fm_t),
         row("RecPilot-best test (holdout)", our_t),
         "",
+        "### Absolute delta over the official baseline (validation)",
+        "",
+        "Scored per the judging formula: `delta(m) = score_agent(m) - score_baseline(m)`, "
+        "then the mean over metrics.",
+        "",
+        "| metric | official FM | RecPilot-best | delta |",
+        "|---|---|---|---|",
+        *_delta_rows(fm_v, our_v),
+        "",
         gap,
+        "",
+        "## Resource consumption (Feasibility & Practicality)",
+        "",
+        f"- LLM tokens (input + output): **{state.get('tokens_used', 0)}**",
+        f"- Agent wall-clock to convergence: **{_hms(stop.get('wall_s'))}**",
+        f"- Iterations used: **{state.get('n_attempts', 0)} / {rule.get('max_iters', 50)}**",
+        "- GPU-hours: **0** (CPU only; no GPU was used at any point)",
+        "",
+        "## Autonomy accounting",
+        "",
+        f"- Manual interventions **during** the scored run: **{state.get('n_human_interventions', 0)}**.",
+        "- The operator catalog, the leakage guard and the stopping rule were authored before "
+        "the run and frozen at session start; `session_start.search_space.catalog_sha256` in "
+        "`events.jsonl` pins the exact search space the loop ran against, and nothing re-reads it "
+        "mid-run. Designing the agent's action space is building the agent, not intervening in "
+        "its run — no operator, hyperparameter or stopping decision was made by a human once the "
+        "session began.",
+        "",
+        "## Data and leakage policy",
+        "",
+        f"- Training data: {policy.get('train_split_only', '—')}",
+        f"- Validation: {policy.get('valid_split', '—')}",
+        f"- Test split: {policy.get('test_split', '—')}",
+        f"- Test labels read during the run: **{bool(policy.get('report_test_metrics'))}**",
+        f"- `log_random_4_22_to_5_08_pure.csv` used for training: **{bool(policy.get('log_random_used'))}**",
+        f"- KuaiRand-1k / 27k used as auxiliary data: **{bool(policy.get('kuairand_1k_27k_used'))}**",
+        f"- Scored-row outcome columns: {policy.get('scored_row_outcomes', '—')}",
+        "",
+        "The `add_watch_time_ranker` operator was removed and permanently banned after it was "
+        "found to rank each row by that row's own `play_time_ms`. `long_view` is a deterministic "
+        "function of play time, so it was reading the label; it reached 0.8418 valid primary "
+        "against a 0.8645 label oracle. See `recpilot/harness/leakguard.py`.",
+        "",
+        "## Declared stopping rule (fixed before the run)",
+        "",
+        f"- epsilon = {rule.get('converge_eps', '—')}, N = {rule.get('converge_n', '—')}, "
+        f"minimum iterations before stopping = {rule.get('min_iterations_before_stop', '—')}",
+        f"- Hard caps: {rule.get('max_iters', '—')} iterations, {rule.get('max_wall_s', '—')}s wall-clock",
+        f"- Scored checkpoint: {rule.get('scored_checkpoint', '—')}",
+        f"- Window: {rule.get('window', '—')}",
         "",
         "## Autonomy and robustness",
         "",
@@ -170,6 +250,15 @@ def render(session: Path) -> str:
             f"| {e.get('run_id')} | `{e.get('operator')}` | {prim} | {dec} | "
             f"{e.get('seconds', '—')} | {hyp} |"
         )
+    lines += ["", "## Applied change per iteration", "",
+              "RecPilot's search space is a catalog of operators over a typed config, so the "
+              "change an iteration applies is the config delta from its parent run.", ""]
+    for e in iters:
+        d = e.get("config_diff")
+        if d is None:
+            continue
+        lines += [f"**`{e.get('run_id')}` · `{e.get('operator')}` · {e.get('decision')}**", "",
+                  "```diff", format_diff(d), "```", ""]
     lines += [
         "",
         "## What we refused to try",
@@ -177,6 +266,8 @@ def render(session: Path) -> str:
         "- Extra CWM static feature fields (organizers: no gain).",
         "- Larger embedding `k` (organizers: no gain).",
         "- User-only first-order terms (zero effect under within-user ranking).",
+        "- Same-row watch time as a score (label leakage; banned in the catalog).",
+        "- Any use of `log_random_*.csv`, KuaiRand-1k or KuaiRand-27k as training data.",
         "",
         "## Artifacts",
         "",

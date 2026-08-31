@@ -111,6 +111,9 @@ def main() -> int:
                 "error": "",
             }
             try:
+                # Post-hoc audit path: reading test labels here is an explicit,
+                # opt-in step outside any scored agent run.
+                cfg.budget.report_test_metrics = bool(args.include_test)
                 result = train_and_score(
                     cfg,
                     split_cache[cache_key],

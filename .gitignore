@@ -1,5 +1,7 @@
 runs/*
 !runs/.gitkeep
+# Deliverable artifacts are lifted out of runs/ by scripts/export_submission.py
+!submission/
 __pycache__/
 *.py[cod]
 *$py.class

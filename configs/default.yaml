@@ -5,7 +5,7 @@ budget:
   max_iters: 50
   max_wall_s: 21600
   max_tokens: 200000
-  train_timeout_s: 900
+  train_timeout_s: 2400
   keep_delta: 0.0001
   converge_eps: 0.002
   converge_n: 3
@@ -15,6 +15,9 @@ budget:
   sample_iters: 0
   sample_frac: 1.0
   beam_size: 3
+  # Test rows are scored to write submission.csv; their labels are never read.
+  # Selection, early stopping and the blend weight are validation-only.
+  report_test_metrics: false
 
 model:
   name: fm

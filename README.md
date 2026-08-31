@@ -21,7 +21,8 @@ nDCG@5 cannot reach 1.0: 27.1% of test users are all-negative. Judge progress ag
 
 ## Setup
 
-Python 3.10+ (3.9 works for the kit; RecPilot uses Pydantic v2).
+Python 3.10+ (3.9 works for the kit; RecPilot uses Pydantic v2). The tree ranker
+needs scikit-learn; everything else is numpy only.
 
 ```bash
 python3 -m pip install -r requirements.txt
@@ -63,6 +64,13 @@ Write the judge report from the latest session:
 python3 scripts/write_report.py
 ```
 
+Lift the deliverables (run log, submission, results table) out of the gitignored
+`runs/` into a tracked `submission/` directory:
+
+```bash
+python3 scripts/export_submission.py --session runs/<session>
+```
+
 Validation-only multi-seed comparison (does **not** use test to pick a winner):
 
 ```bash
@@ -97,8 +105,39 @@ python3 kuairand-starter-kit/submit.py --check --split test --data_dir ./KuaiRan
 | `add_multitask` | Shared-embedding aux heads on `is_click` / `is_like` |
 | `tune_hparams` | lr / l2 / batch around the **current-best** architecture (`k` stays 16) |
 | `blend_item_pop` | Convex blend of model logits and kit item-pop |
+| `bag_seeds` | Rank-average N seeds of the current-best config |
+| `add_gbdt_ranker` | Boosted tree over train-only count/rate features |
+| `blend_fm_gbdt` | Rank-blend the bagged FM with the tree ranker; weight fitted on valid |
 
-**Banned:** CWM static user buckets, increasing `k`, user-only first-order features.
+**Banned:** CWM static user buckets, increasing `k`, user-only first-order features,
+and `add_watch_time_ranker` — see [Leakage policy](#leakage-policy).
+
+## Leakage policy
+
+`long_view` is a deterministic function of the impression's own outcome: on the train
+split every row with `play_time_ms > 18000` has `long_view == 1`. Any scorer that reads a
+post-impression column off the row it is ranking is therefore reading the label.
+
+An early operator, `add_watch_time_ranker`, did exactly that — it scored each row by its own
+`log1p(play_time_ms)` and reached **0.8418 valid primary against a 0.8645 label oracle**. It has
+been removed, and the failure is now structural rather than a matter of care:
+
+- [`recpilot/harness/leakguard.py`](recpilot/harness/leakguard.py) strips every outcome column
+  from valid/test rows before they reach a scorer, so a model that wants one raises instead of
+  leaking, and rejects any encoder field list that names an outcome.
+- The operator sits in the catalog's `BANNED` map with its measured score, so the planner
+  cannot re-propose it.
+- Outcome columns stay available on **train** rows, where using them as auxiliary targets or to
+  build history features from strictly earlier interactions is legitimate.
+
+Three further rules hold across the pipeline, each recorded in the `session_start` event of
+every run log:
+
+| rule | how it is enforced |
+|---|---|
+| Train only on 20220408–20220421 | `data.SPLITS`; `log_random_*.csv` is never opened |
+| No KuaiRand-1k / 27k as auxiliary data | not downloaded, not referenced |
+| No test labels in any decision | `budget.report_test_metrics: false` — test rows are scored to write `submission.csv`, their labels are never read. Selection, early stopping and the blend weight are validation-only |
 
 ## Architecture
 

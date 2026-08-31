@@ -7,7 +7,8 @@ from recpilot.config import Settings
 from recpilot.harness.encode import BASE_FIELDS, HISTORY_FIELDS, RECENCY_FIELDS, TIME_FIELDS
 
 ALLOWED_MODELS = frozenset({
-    "fm", "bpr", "listwise", "multitask", "sequence_interest", "deepfm_din", "watch_time",
+    "fm", "bpr", "listwise", "multitask", "sequence_interest", "deepfm_din",
+    "seed_bag", "gbdt", "blend",
 })
 AVAILABLE_FIELDS = frozenset(BASE_FIELDS + HISTORY_FIELDS + RECENCY_FIELDS + TIME_FIELDS)
 RECENCY_VARIANTS = frozenset({"hl2", "hl7", "last5"})

@@ -25,10 +25,15 @@ class Budget(BaseModel):
     sample_iters: int = 0
     sample_frac: float = 1.0
     beam_size: int = 3
+    # Scoring the test split writes submission.csv and needs no labels. Reading
+    # test *labels* to compute test metrics is a separate, opt-in step and is off
+    # for scored runs: selection, early stopping and convergence are valid-only.
+    report_test_metrics: bool = False
 
 
 class ModelConfig(BaseModel):
-    name: str = "fm"  # fm | bpr | listwise | multitask | sequence_interest | deepfm_din | watch_time
+    name: str = "fm"  # fm | bpr | listwise | multitask | sequence_interest | deepfm_din
+                      #  | seed_bag | gbdt | blend
     k: int = 16
     lr: float = 0.001
     l2: float = 1e-6
@@ -51,6 +56,13 @@ class ModelConfig(BaseModel):
     train_frac: float = 1.0
     es_min_delta: float = 1e-5
     hard_neg_weight: float = 1.0
+    bag_seeds: int = 3          # seed_bag / blend: members to rank-average
+    bag_base: str = "fm"        # single-model scorer each bag member trains
+    blend_alpha: float = -1.0   # blend: -1 tunes the weight on valid, else fixed
+    gbdt_iters: int = 400
+    gbdt_lr: float = 0.06
+    gbdt_leaves: int = 63
+    gbdt_l2: float = 1.0
 
 
 class FeatureConfig(BaseModel):
@@ -59,7 +71,6 @@ class FeatureConfig(BaseModel):
     time_features: bool = False
     recency_history: bool = False
     recency_variant: str = "hl7"  # hl2 | hl7 | last5
-    log_engage: bool = False
 
 
 class LLMConfig(BaseModel):

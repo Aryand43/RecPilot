@@ -241,7 +241,9 @@ class SequenceInterest:
             author[i] = self._lookup(self.author_vocab, d["author_id"])
             tab[i] = self._lookup(self.tab_vocab, d["tab"])
             dur[i] = self._dur_id(d["duration_ms"])
-            y[i] = float(d["long_view"])
+            # Outcome fields are absent when scoring (leakguard.mask_outcomes strips
+            # them); _logits never reads y, so packing 0.0 keeps predict label-free.
+            y[i] = float(d.get("long_view", 0.0))
             y_click[i] = float(d.get("is_click", 0))
             y_like[i] = float(d.get("is_like", 0))
             now = ymd_to_ord(int(d["date"]))

@@ -19,13 +19,20 @@ OPERATORS = (
     "add_hard_negatives",
     "retrain_full_data",
     "run_ablation",
-    "add_watch_time_ranker",
+    "bag_seeds",
+    "add_gbdt_ranker",
+    "blend_fm_gbdt",
 )
 
 BANNED = {
     "add_cwm_static_fields": "Organizers already measured this: primary 0.5940 vs 0.5950, noise.",
     "increase_k": "Organizers already measured k=8/16/32: no gain. Capacity is not the bottleneck.",
     "user_only_first_order": "Within-user ranking: user-constant terms do not change order.",
+    "add_watch_time_ranker": (
+        "Label leakage: scores a row by its own play_time_ms, and long_view is a "
+        "deterministic function of play time (>18s => 1 on 100% of train rows). "
+        "Scored 0.8418 valid primary against a 0.8645 label oracle. Removed."
+    ),
 }
 
 # Search order for heuristic / beam children. retrain_full_data is injected by the loop.
@@ -41,6 +48,9 @@ PRIORITY = [
     "switch_loss_bpr",
     "add_multitask",
     "add_deepfm_din",
+    "bag_seeds",
+    "add_gbdt_ranker",
+    "blend_fm_gbdt",
 ]
 
 FM_FEATURE_OPS = frozenset({
@@ -51,6 +61,8 @@ FM_FEATURE_OPS = frozenset({
     "add_hard_negatives",
 })
 SEQUENCE_FAMILY = frozenset({"sequence_interest", "deepfm_din"})
+# Ensembles wrap a fitted base config; FM feature/loss ops still apply to their members.
+ENSEMBLE_FAMILY = frozenset({"seed_bag", "gbdt", "blend"})
 
 
 def banned_reason(operator: str, params: dict[str, Any]) -> Optional[str]:
@@ -219,14 +231,38 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
         cfg.model.hard_neg_weight = float(p.get("weight", 2.0))
         return _exploration_es(cfg)
 
-    if operator == "retrain_full_data":
-        cfg.model.train_frac = 1.0
+    if operator == "bag_seeds":
+        # Five seeds of one FM config span ~0.0015 valid primary. Averaging their
+        # within-user ranks removes that variance without changing the model class.
+        if parent.model.name in ENSEMBLE_FAMILY:
+            raise ValueError(f"no-op: {parent.model.name} is already an ensemble")
+        cfg.model.bag_base = parent.model.name
+        cfg.model.name = "seed_bag"
+        cfg.model.bag_seeds = max(2, min(5, int(p.get("seeds", 3))))
         return cfg
 
-    if operator == "add_watch_time_ranker":
-        cfg.model.name = "watch_time"
-        cfg.features.log_engage = True
-        cfg.features.use_kit_encode = False
+    if operator == "add_gbdt_ranker":
+        # Different inductive bias to the embedding FM: train-only count/rate
+        # features (item, author, user x author, user x tag) in a boosted tree.
+        cfg.model.name = "gbdt"
+        for key in ("gbdt_iters", "gbdt_lr", "gbdt_leaves", "gbdt_l2"):
+            if key in p:
+                setattr(cfg.model, key, type(getattr(cfg.model, key))(p[key]))
+        return cfg
+
+    if operator == "blend_fm_gbdt":
+        # The two model classes make different errors; alpha is fitted on valid.
+        if parent.model.name in ENSEMBLE_FAMILY:
+            cfg.model.bag_base = parent.model.bag_base
+        else:
+            cfg.model.bag_base = parent.model.name
+        cfg.model.name = "blend"
+        cfg.model.bag_seeds = max(2, min(5, int(p.get("seeds", 3))))
+        cfg.model.blend_alpha = float(p.get("alpha", -1.0))
+        return cfg
+
+    if operator == "retrain_full_data":
+        cfg.model.train_frac = 1.0
         return cfg
 
     raise ValueError(operator)

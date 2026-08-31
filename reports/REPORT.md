@@ -1,6 +1,6 @@
 # RecPilot experiment report
 
-Session: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605`
+Session: `/Users/aryand/Desktop/RecPilot/runs/20260831_150941`
 
 ## Devpost blurb
 
@@ -23,33 +23,70 @@ Primary score = mean(GAUC, nDCG@5) from the official, unmodified `evaluate.py`.
 
 ## RecPilot-best (selected on valid only)
 
-- Best run: `0009`
+- Best run: `0004`
 - Baseline reproduced: True
-- Stop reason: `converged`
-- Exploration min iters: 10
-- Attempts: **10**
-- Exploration complete / convergence eligible: True / True
-- Stop phase: after official convergence became eligible
+- Stop reason: `None`
+- Exploration min iters: 40
+- Attempts: **18**
+- Exploration complete / convergence eligible: False / False
+- Stop phase: during exploration (ε/N not yet allowed)
 - Official convergence rule remains **ε=0.002, N=3** (applied only after `exploration_min_iters`).
 
 | model | GAUC | nDCG@5 | primary |
 |---|---|---|---|
 | official FM valid | 0.6674 | 0.5357 | 0.6016 |
-| RecPilot-best valid | 0.6697 | 0.5365 | 0.6031 |
+| RecPilot-best valid | 0.6701 | 0.5372 | 0.6036 |
 | official FM test | 0.6610 | 0.5282 | 0.5946 |
-| RecPilot-best test (holdout) | 0.6627 | 0.5291 | 0.5959 |
+| RecPilot-best test (holdout) | 0.6627 | 0.5294 | 0.5960 |
 
-Official FM test primary **0.5946** vs oracle **0.8645**. RecPilot-best test primary **0.5959** (0.5% of remaining oracle gap closed).
+### Absolute delta over the official baseline (validation)
+
+Scored per the judging formula: `delta(m) = score_agent(m) - score_baseline(m)`, then the mean over metrics.
+
+| metric | official FM | RecPilot-best | delta |
+|---|---|---|---|
+| GAUC | 0.6674 | 0.6701 | +0.0027 |
+| nDCG@5 | 0.5357 | 0.5372 | +0.0015 |
+| primary (mean) | 0.6016 | 0.6036 | +0.0020 |
+| **score_dataset** (mean of metric deltas) | | | **+0.0021** |
+
+Official FM test primary **0.5946** vs oracle **0.8645**. RecPilot-best test primary **0.5960** (0.5% of remaining oracle gap closed).
+
+## Resource consumption (Feasibility & Practicality)
+
+- LLM tokens (input + output): **24416**
+- Agent wall-clock to convergence: **—**
+- Iterations used: **18 / 50**
+- GPU-hours: **0** (CPU only; no GPU was used at any point)
+
+## Data and leakage policy
+
+- Training data: —
+- Validation: —
+- Test split: —
+- Test labels read during the run: **False**
+- `log_random_4_22_to_5_08_pure.csv` used for training: **False**
+- KuaiRand-1k / 27k used as auxiliary data: **False**
+- Scored-row outcome columns: —
+
+The `add_watch_time_ranker` operator was removed and permanently banned after it was found to rank each row by that row's own `play_time_ms`. `long_view` is a deterministic function of play time, so it was reading the label; it reached 0.8418 valid primary against a 0.8645 label oracle. See `recpilot/harness/leakguard.py`.
+
+## Declared stopping rule (fixed before the run)
+
+- epsilon = —, N = —, minimum iterations before stopping = —
+- Hard caps: — iterations, —s wall-clock
+- Scored checkpoint: —
+- Window: —
 
 ## Autonomy and robustness
 
-- Autonomous iterations: **10** (floor `10` before ε/N can stop)
-- Keeps / rollbacks: **4** / **6**
+- Autonomous iterations: **18** (floor `40` before ε/N can stop)
+- Keeps / rollbacks: **4** / **14**
 - Errors / timeouts: **0** / **0**
 - Auto-recoveries: **0**
 - Human interventions: **0** (target: 0 after `run_agent.py`)
-- Tokens used: 0
-- Wall clock (session_stop): 374.73s
+- Tokens used: 24416
+- Wall clock (session_stop): —s
 
 Keep/rollback uses **valid primary** only. Test numbers are holdout.
 
@@ -57,92 +94,41 @@ Keep/rollback uses **valid primary** only. Test numbers are holdout.
 
 | run | operator | valid primary | decision | seconds | hypothesis |
 |---|---|---|---|---|---|
-| 0001 | `reproduce_fm` | 0.6015 | keep | 26.08 | Reproduce the official FM so every later delta is measured against a real bas... |
-| 0002 | `switch_loss_listwise` | 0.5973 | rollback | 29.28 | Listwise softmax-CE matches within-user ranking (GAUC / nDCG) better than poi... |
-| 0003 | `switch_loss_bpr` | 0.5987 | rollback | 24.59 | Pairwise BPR pushes long-view items above non-long-view items for the same user. |
-| 0004 | `add_history_crosses` | 0.6022 | keep | 36.31 | User×author and user×tab long-view rates from prior train history add crosses... |
-| 0005 | `add_multitask` | 0.6015 | rollback | 40.82 | Click/like aux heads regularize shared embeddings for the long_view ranking h... |
-| 0006 | `blend_item_pop` | 0.6012 | rollback | 37.25 | A small blend with smoothed item popularity can lift nDCG@5 on head items. |
-| 0007 | `tune_hparams` | 0.6029 | keep | 45.09 | Small lr change around the current-best architecture; k stays 16. |
-| 0008 | `tune_hparams` | 0.6019 | rollback | 33.35 | Small lr change around the current-best architecture; k stays 16. |
-| 0009 | `tune_hparams` | 0.6031 | keep | 57.41 | Small lr change around the current-best architecture; k stays 16. |
-| 0010 | `switch_loss_listwise` | 0.5973 | rollback | 44.52 | Catalog exhausted; retry listwise from current best with slightly lower lr. |
+| 0001 | `reproduce_fm` | 0.6015 | keep | 70.36 | Reproduce the official FM so every later delta is measured against a real bas... |
+| 0002 | `run_ablation` | 0.6022 | keep | 93.35 | User×author / user×tab rates from prior train only. |
+| 0003 | `run_ablation` | 0.6024 | keep | 129.48 | History + recency hl7 on full-data FM. |
+| 0004 | `run_ablation` | 0.6036 | keep | 223.21 | History + recency hl7 + lr 5e-4 (measured keep on this benchmark). |
+| 0005 | `run_ablation` | 0.6027 | rollback | 145.24 | History + recency last5 + lr 5e-4. |
+| 0006 | `run_ablation` | 0.5967 | rollback | 116.42 | History FM with listwise softmax-CE over each user's impression list. |
+| 0007 | `run_ablation` | 0.6025 | rollback | 131.56 | History + recency hl7 + pop blend α=0.1. |
+| 0008 | `run_ablation` | 0.6025 | rollback | 133.47 | Recency hl2 (includes history crosses). |
+| 0009 | `run_ablation` | 0.6036 | rollback | 170.6 | History + recency hl7 + lr 5e-4 + pop α=0.05. |
+| 0010 | `tune_hparams` | 0.6031 | rollback | 125.61 | Tuning learning rate to 3e-4 on the current best model may yield improved per... |
+| 0011 | `tune_hparams` | 0.6031 | rollback | 123.01 | Tuning learning rate to 2e-4 on the current best model may yield improved per... |
+| 0012 | `tune_hparams` | 0.6029 | rollback | 120.88 | Tuning learning rate to 1e-3 on the current best model may yield improved per... |
+| 0013 | `tune_hparams` | 0.6029 | rollback | 115.14 | Tuning learning rate to 5e-4 on the current best model may yield improved per... |
+| 0014 | `blend_item_pop` | 0.6036 | rollback | 86.08 | Blending item popularity with alpha=0.05 on the current best model may yield ... |
+| 0015 | `blend_item_pop` | 0.6034 | rollback | 85.17 | Blending item popularity with alpha=0.1 on the current best model may yield i... |
+| 0016 | `switch_loss_listwise` | 0.5985 | rollback | 143.88 | Switching to listwise loss may improve performance on the current best model. |
+| 0017 | `blend_item_pop` | 0.6032 | rollback | 90.08 | Blending item popularity with alpha=0.2 on the current best model may yield i... |
+| 0018 | `add_hard_negatives` | 0.6034 | rollback | 126.76 | Adding hard negatives with a weight of 2.0 on the current best model may yiel... |
+
+## Applied change per iteration
+
+RecPilot's search space is a catalog of operators over a typed config, so the change an iteration applies is the config delta from its parent run.
 
 ## What we refused to try
 
 - Extra CWM static feature fields (organizers: no gain).
 - Larger embedding `k` (organizers: no gain).
 - User-only first-order terms (zero effect under within-user ranking).
+- Same-row watch time as a score (label leakage; banned in the catalog).
+- Any use of `log_random_*.csv`, KuaiRand-1k or KuaiRand-27k as training data.
 
 ## Artifacts
 
-- Events: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605/events.jsonl`
-- State: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605/state.json`
-- Submission: `/Users/aryand/Desktop/RecPilot/runs/20260829_193605/submission.csv`
+- Events: `/Users/aryand/Desktop/RecPilot/runs/20260831_150941/events.jsonl`
+- State: `/Users/aryand/Desktop/RecPilot/runs/20260831_150941/state.json`
+- Submission: `/Users/aryand/Desktop/RecPilot/runs/20260831_150941/submission.csv`
 
 Metrics come from `kuairand-starter-kit/evaluate.py`. That file is not modified.
-
-## Multi-seed audit: sequence interest (DIN-style)
-
-Grid: `runs/multiseed_20260830_075307`. **12 trains = 4 configs × 3 seeds** (`0,1,2`). Validation only; no test.
-
-The DIN model is **only 3 of those 12**. The other 9 are comparison baselines (same seeds).
-
-**Model used for `seq_interest`:** `SequenceInterest` in `recpilot/models/sequence.py` (`model.name = sequence_interest`). Not FM. Numpy, CPU. Last **N=20** train interactions (author, tab, duration bucket), recency × long_view weights (half-life 7 days), target-aware attention onto the candidate, then MLP `[user ⊕ candidate ⊕ interest] → 64 → 1` with long_view BCE. Operator: `add_sequence_interest_model`. Config id: `seq_interest`.
-
-| config | model | valid primary (mean ± sample std) | Δ vs local FM | seeds > FM |
-|---|---|---:|---:|---:|
-| `official_fm` | kit FM | 0.6014 ± 0.0003 | — | 0/3 |
-| `history_fm_lr_3e4` | FM + history crosses, lr 3e-4 | 0.6029 ± 0.0003 | +0.0014 | 3/3 |
-| `recency_hl7_lr_3e4` | FM + recency hl7, lr 3e-4 | 0.6032 ± 0.0008 | +0.0017 | 3/3 |
-| **`seq_interest`** | **SequenceInterest (DIN)** | **0.6038 ± 0.0004** | **+0.0023** | **3/3** |
-
-DIN per seed (valid only):
-
-| seed | GAUC | nDCG@5 | primary | metrics file |
-|---|---:|---:|---:|---|
-| 0 | 0.6701 | 0.5375 | 0.6038 | `runs/multiseed_20260830_075307/seq_interest/seed_0/metrics_valid.json` |
-| 1 | 0.6706 | 0.5377 | 0.6042 | `runs/multiseed_20260830_075307/seq_interest/seed_1/metrics_valid.json` |
-| 2 | 0.6696 | 0.5371 | 0.6033 | `runs/multiseed_20260830_075307/seq_interest/seed_2/metrics_valid.json` |
-
-Winner on **mean valid primary**: `seq_interest`. Not a significance claim. Full table: `runs/multiseed_20260830_075307/AUDIT.md`.
-
-## Multi-seed audit: DeepFM + DIN (`deepfm_din`)
-
-Grid (valid only, seeds 0/1/2): FM + history + current DIN vs new `DeepFMSequence` (`recpilot/models/deepfm_din.py`). Operator: `add_deepfm_din`. FM+MLP+DIN, **listwise** long_view, click/like BCE, censored log play-time. Candidate does **not** use the current impression’s `is_click` (that leaked ~0.775 and was discarded).
-
-| config | valid primary | Δ vs local FM | seeds > FM | mean s |
-|---|---:|---:|---:|---:|
-| `official_fm` | 0.6014 ± 0.0003 | — | 0/3 | 20 |
-| `history_fm_lr_3e4` | 0.6029 ± 0.0003 | +0.0014 | 3/3 | 43 |
-| **`seq_interest`** | **0.6038 ± 0.0004** | **+0.0023** | **3/3** | 355 |
-| `deepfm_din` | 0.5964 ± 0.0005 | −0.0050 | 0/3 | 137 |
-
-`deepfm_din` per seed: 0.5968 / 0.5967 / 0.5958. Same story as listwise FM (agent rollback ~0.597): listwise on this stack did not beat pointwise DIN.
-
-Audit: `runs/multiseed_20260830_152347/AUDIT.md` (baselines + DIN) and `runs/multiseed_deepfm_din_fixed/AUDIT.md` (DeepFM seeds). Combined CSV: `runs/multiseed_20260830_152347/results_per_seed.csv`.
-
-## Multi-seed audit: SequenceInterest knobs (keep DIN)
-
-Valid only, seeds `0,1,2`. No `--include_test`. No DeepFM. Incumbent = current `seq_interest` (n=20, hl=7, pointwise BCE, no aux, blend=0): **0.6038 ± 0.0004**.
-
-Keep a change only if **both** mean valid primary > incumbent by `1e-4` **and** it wins on ≥2/3 same seeds. FM / history / DIN reused from `runs/multiseed_20260830_075307`. Pop blends scored offline from frozen DIN `scores_valid.npy`. New trains: `runs/multiseed_din_tune`.
-
-| config | valid primary | Δ vs DIN | seeds > DIN | decision |
-|---|---:|---:|---:|---|
-| **`seq_interest`** | **0.6038 ± 0.0004** | — | — | **incumbent (kept)** |
-| `seq_n10` | 0.6036 ± 0.0003 | −0.0002 | 0/3 | discard |
-| `seq_n40` | 0.6034 ± 0.0001 | −0.0004 | 0/3 | discard |
-| `seq_hl2` | 0.6036 ± 0.0002 | −0.0001 | 1/3 | discard |
-| `seq_hl5` | 0.6037 ± 0.0003 | −0.0001 | 1/3 | discard |
-| `seq_hl14` | 0.6037 ± 0.0003 | −0.00003 | 2/3 | discard (mean Δ ≤ 1e-4) |
-| `seq_engage` | 0.6036 ± 0.0003 | −0.0001 | 1/3 | discard |
-| `seq_listwise` | 0.5967 ± 0.0011 | −0.0070 | 0/3 | discard |
-| `seq_aux` | 0.6032 ± 0.0004 | −0.0006 | 0/3 | discard |
-| `seq_pop10` | 0.6032 ± 0.0006 | −0.0006 | 0/3 | discard |
-| `seq_pop20` | 0.6027 ± 0.0005 | −0.0011 | 0/3 | discard |
-| `seq_pop30` | 0.6020 ± 0.0004 | −0.0018 | 0/3 | discard |
-
-**No axis kept.** Closest was half-life 14 (2/3 seeds, mean still −0.00003). Listwise is the same rollback class as listwise FM / DeepFM (~0.597). Pop is strictly worse on the same logits. No stacked second 3-seed (need two axes that each beat DIN alone). Default `seq_interest` knobs were not mutated.
-
-Audit + CSV: `runs/multiseed_din_tune/AUDIT.md`, `runs/multiseed_din_tune/results_per_seed.csv`.

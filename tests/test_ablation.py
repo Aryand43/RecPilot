@@ -152,6 +152,8 @@ class AblationQueueTests(unittest.TestCase):
         tried.append(f"{parent}|switch_loss_listwise:" + json.dumps({"temperature": 1.0}, sort_keys=True))
         tried.append(f"{parent}|add_hard_negatives:" + json.dumps({"weight": 2.0}, sort_keys=True))
         tried.append(f"{parent}|add_sequence_interest_model:" + json.dumps({"seq_len": 20}, sort_keys=True))
+        for op in ("bag_seeds", "add_gbdt_ranker", "blend_fm_gbdt"):
+            tried.append(f"{parent}|{op}:" + json.dumps({}, sort_keys=True))
         state["tried"] = tried
         kids = propose_children(state, n=3)
         self.assertEqual(kids, [])

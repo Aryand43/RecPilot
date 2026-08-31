@@ -95,7 +95,8 @@ def build_scorer(cfg: ModelConfig, dim: int, verbose: bool = False):
     if name == "deepfm_din":
         from recpilot.models.deepfm_din import DeepFMSequence
         return DeepFMSequence(dim, cfg, verbose=verbose)
-    if name == "watch_time":
-        from recpilot.models.watch import WatchTimeScorer
-        return WatchTimeScorer(dim, cfg, verbose=verbose)
+    if name in ("seed_bag", "gbdt", "blend"):
+        from recpilot.models.ensemble import BlendEnsemble, GBDTRanker, SeedBagFM
+        return {"seed_bag": SeedBagFM, "gbdt": GBDTRanker, "blend": BlendEnsemble}[name](
+            dim, cfg, verbose=verbose)
     raise ValueError(f"unknown model name: {name}")

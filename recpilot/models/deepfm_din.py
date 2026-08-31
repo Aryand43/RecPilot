@@ -242,10 +242,12 @@ class DeepFMSequence:
             dur[i] = self._dur_id(d["duration_ms"])
             # Candidate click is unknown at rank time; only history events carry is_click.
             click[i] = 0
-            y[i] = float(d["long_view"])
+            # Outcome fields are absent when scoring (leakguard.mask_outcomes strips
+            # them); _logits never reads y, so packing 0.0 keeps predict label-free.
+            y[i] = float(d.get("long_view", 0.0))
             y_click[i] = float(d.get("is_click", 0))
             y_like[i] = float(d.get("is_like", 0))
-            play[i] = float(d.get("play_time_ms", 0) or 0)
+            play[i] = float(d.get("play_time_ms", 0) or 0)  # train-only; 0 at score time
             duration[i] = float(d["duration_ms"])
             now = ymd_to_ord(int(d["date"]))
             for j, ev in enumerate(evs[-nseq:]):

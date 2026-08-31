@@ -15,6 +15,7 @@ from recpilot.agent.beam import (
     next_promotion_parent,
     update_beam,
 )
+from recpilot.agent.diff import config_diff
 from recpilot.agent.fingerprint import config_fingerprint, fingerprints_equal
 from recpilot.agent.safety import RunnerError, RunnerTimeout, run_in_subprocess
 from recpilot.config import Budget, ExperimentSpec, Settings, load_settings
@@ -26,6 +27,20 @@ from recpilot.log.summarize import write_session_artifacts
 from recpilot.log.tracker import RunLogger, last_k_for_planner
 from recpilot.operators.catalog import apply_operator
 from recpilot.paths import BASELINE_SCORES
+
+
+def _catalog_fingerprint() -> dict[str, Any]:
+    """Hash of the operator catalog plus the operator and banned lists."""
+    import hashlib
+
+    from recpilot.operators import catalog as catalog_mod
+
+    src = Path(catalog_mod.__file__).read_bytes()
+    return {
+        "catalog_sha256": hashlib.sha256(src).hexdigest(),
+        "operators": list(catalog_mod.OPERATORS),
+        "banned": {k: v for k, v in catalog_mod.BANNED.items()},
+    }
 
 
 def _session_dir(runs_dir: Path) -> Path:
@@ -156,6 +171,30 @@ def run_session(
         "synthetic": synthetic,
         "data_dir": str(settings.resolved_data_dir()),
         "budget": budget.model_dump(),
+        # Declared before the first iteration, per the organizers' FAQ on
+        # self-declared stopping rules. Nothing below is changed mid-run.
+        "stopping_rule": {
+            "converge_eps": budget.converge_eps,
+            "converge_n": budget.converge_n,
+            "min_iterations_before_stop": budget.exploration_min_iters,
+            "max_iters": budget.max_iters,
+            "max_wall_s": budget.max_wall_s,
+            "scored_checkpoint": "validation-best at stop",
+            "window": "cumulative; crashed iterations count toward the cap "
+                      "but do not advance or reset the window",
+        },
+        # Proves the search space was frozen before iteration 1: the catalog file's
+        # hash is logged here and nothing re-reads it mid-run.
+        "search_space": _catalog_fingerprint(),
+        "data_policy": {
+            "train_split_only": "20220408-20220421 from log_standard_4_08_to_4_21_pure.csv",
+            "valid_split": "20220422-20220428 (selection, early stopping, blend weight)",
+            "test_split": "scored for submission.csv only",
+            "report_test_metrics": budget.report_test_metrics,
+            "log_random_used": False,
+            "kuairand_1k_27k_used": False,
+            "scored_row_outcomes": "stripped by harness.leakguard before any scorer sees them",
+        },
     })
 
     _mark_exploration(state, budget)
@@ -387,6 +426,7 @@ def run_session(
             "hypothesis": spec.hypothesis,
             "parent_run": spec.parent_run,
             "planner": source,
+            "config_diff": config_diff(parent_cfg if parent_id else None, cfg),
             "metrics_valid": metrics_valid,
             "metrics_test": metrics_test,
             "decision": decision,

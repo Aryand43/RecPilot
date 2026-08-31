@@ -78,7 +78,7 @@ def _candidate_params(op: str, tried: set[str], parent: Optional[str]) -> Option
     if op == "add_history_crosses":
         p: dict[str, Any] = {}
         return None if _already(tried, op, p, parent) else p
-    if op in ("switch_loss_bpr", "add_multitask", "add_deepfm_din", "add_watch_time_ranker"):
+    if op in ("switch_loss_bpr", "add_multitask", "add_deepfm_din"):
         return None
     return {} if not _already(tried, op, {}, parent) else None
 
@@ -92,7 +92,7 @@ def propose_children(state: dict[str, Any], n: int = 3) -> list[dict[str, Any]]:
     queue_done = next_ablation(state) is None
     out: list[dict[str, Any]] = []
     for op in PRIORITY:
-        if op in ("reproduce_fm", "retrain_full_data", "run_ablation", "add_watch_time_ranker"):
+        if op in ("reproduce_fm", "retrain_full_data", "run_ablation"):
             continue
         # History/recency are covered by the 8-config FM ablation queue.
         if queue_done and op in ("add_history_crosses", "add_recency_history"):
@@ -166,8 +166,10 @@ def _default_hypothesis(op: str) -> str:
         "add_hard_negatives": "Up-weight false positives (high score, long_view=0) on the champion FM.",
         "retrain_full_data": "Promote a beam config from a train subsample to 100% train.",
         "run_ablation": "Run the next fixed FM ablation config.",
-        "add_watch_time_ranker": "Rank by same-row log1p(play_time_ms); contemporaneous engagement.",
         "reproduce_fm": "Reproduce official FM.",
+        "bag_seeds": "Five seeds of one FM config span ~0.0015 valid primary — the size of the whole improvement so far. Rank-averaging seeds removes that variance without changing the model class.",
+        "add_gbdt_ranker": "A boosted tree over train-only count/rate features (item, author, user×author, user×tag) has a different inductive bias to the embedding FM, so it makes different errors.",
+        "blend_fm_gbdt": "Rank-blend the seed-bagged FM with the tree ranker; the mixing weight is fitted on valid. Decorrelated members beat either alone.",
     }.get(op, f"Try {op}.")
 
 

@@ -63,13 +63,15 @@ def _blend_from_parent(spec: ExperimentSpec, data: dict, run_dir: Path) -> dict 
         pop = item_pop_scores(splits["train"], splits[split])
         logits = blend_logits(logits, pop, alpha)
         X, y, users, _ = enc[split]
-        metrics = score(users, y, logits)
+        report = split == "valid" or bool(getattr(spec.config.budget, "report_test_metrics", False))
+        metrics = score(users, y, logits) if report else None
         np.save(run_dir / f"scores_{split}.npy", logits)
-        (run_dir / f"metrics_{split}.json").write_text(json.dumps(metrics, indent=2))
+        if metrics is not None:
+            (run_dir / f"metrics_{split}.json").write_text(json.dumps(metrics, indent=2))
         if split == "valid":
             out["metrics_valid"] = metrics_public(metrics)
         else:
-            out["metrics_test"] = metrics_public(metrics)
+            out["metrics_test"] = metrics_public(metrics) if metrics is not None else None
             sub = run_dir / "submission.csv"
             write_scores(sub, kit_rows["test"], logits)
             check_submission(sub, kit_rows["test"])
