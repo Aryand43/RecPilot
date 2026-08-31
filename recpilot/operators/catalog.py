@@ -26,14 +26,14 @@ BANNED = {
 
 PRIORITY = [
     "reproduce_fm",
-    "switch_loss_listwise",
-    "switch_loss_bpr",
     "add_history_crosses",
-    "add_multitask",
-    "blend_item_pop",
-    "tune_hparams",
     "add_recency_history",
     "add_sequence_interest_model",
+    "tune_hparams",
+    "switch_loss_listwise",
+    "switch_loss_bpr",
+    "add_multitask",
+    "blend_item_pop",
     "add_deepfm_din",
 ]
 

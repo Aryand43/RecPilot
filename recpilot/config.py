@@ -11,14 +11,14 @@ from recpilot.paths import DEFAULT_CONFIG, DEFAULT_DATA_DIR, REPO_ROOT
 
 
 class Budget(BaseModel):
-    max_iters: int = 12
-    max_wall_s: float = 14400
+    max_iters: int = 50
+    max_wall_s: float = 21600
     max_tokens: int = 200000
-    train_timeout_s: float = 600
+    train_timeout_s: float = 900
     keep_delta: float = 1e-4
     converge_eps: float = 0.002
     converge_n: int = 3
-    exploration_min_iters: int = 10
+    exploration_min_iters: int = 40
     max_retries: int = 1
     cooldown_iters: int = 2
     regression_tol: float = 0.01

@@ -12,13 +12,17 @@ sys.path.insert(0, str(ROOT))
 
 from recpilot.agent.loop import run_session  # noqa: E402
 from recpilot.config import load_settings  # noqa: E402
-from recpilot.paths import DEFAULT_CONFIG  # noqa: E402
+from recpilot.paths import DEFAULT_CONFIG, load_dotenv  # noqa: E402
+
+load_dotenv()
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Run the RecPilot autonomous loop")
     ap.add_argument("--config", default=str(DEFAULT_CONFIG))
     ap.add_argument("--max_iters", type=int, default=None)
+    ap.add_argument("--max_wall_s", type=float, default=None)
+    ap.add_argument("--exploration_min_iters", type=int, default=None)
     ap.add_argument("--synthetic", action="store_true", help="Tiny fake data; smoke-test the loop")
     ap.add_argument("--data_dir", default=None)
     ap.add_argument("--train_timeout_s", type=float, default=None)
@@ -29,6 +33,10 @@ def main() -> int:
         settings.data_dir = args.data_dir
     if args.train_timeout_s:
         settings.budget.train_timeout_s = args.train_timeout_s
+    if args.max_wall_s is not None:
+        settings.budget.max_wall_s = args.max_wall_s
+    if args.exploration_min_iters is not None:
+        settings.budget.exploration_min_iters = args.exploration_min_iters
 
     if not args.synthetic and not settings.resolved_data_dir().exists():
         print(f"ERROR: data_dir not found: {settings.resolved_data_dir()}", file=sys.stderr)

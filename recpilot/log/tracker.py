@@ -64,7 +64,7 @@ def default_state() -> dict[str, Any]:
         "tried": [],
         "baseline_reproduced": False,
         "stop_reason": None,
-        "exploration_min_iters": 10,
+        "exploration_min_iters": 40,
         "exploration_complete": False,
         "convergence_eligible": False,
     }

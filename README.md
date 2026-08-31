@@ -48,7 +48,7 @@ python3 scripts/reproduce_baseline.py --data_dir ./KuaiRand-Pure/data
 Run the autonomous loop (valid-only keep/rollback; test CSV on every keep):
 
 ```bash
-python3 scripts/run_agent.py --max_iters 12
+python3 scripts/run_agent.py --max_iters 50
 ```
 
 Smoke-test the loop on tiny synthetic data (no download):

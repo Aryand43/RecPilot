@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from recpilot.config import LLMConfig
 from recpilot.operators.catalog import BANNED, OPERATORS, PRIORITY, banned_reason
+from recpilot.paths import load_dotenv
 
 SYSTEM_PROMPT = """You are RecPilot, an autonomous research engineer for KuaiRand-Pure.
 
@@ -16,28 +17,34 @@ You only see VALIDATION metrics. Never ask for or use test numbers to choose.
 
 Official FM baseline (valid): GAUC 0.6674, nDCG@5 0.5357, primary 0.6016.
 Oracle ceiling (valid primary 0.8484 / test 0.8645). FM already took ~31% of usable headroom.
-Convergence: no gain of 0.002 primary for 3 iterations.
+Convergence: no gain of 0.002 primary for 3 iterations — but only AFTER exploration_min_iters.
 
 Organizer dead ends — NEVER propose these:
 - Adding CWM static user/item buckets (measured: no gain).
 - Increasing embedding dim k (8/16/32 measured: no gain).
 - User-only first-order features (they do not change within-user order).
 
-Promising directions (kit-unexplored, in this order):
-1. Ranking losses (BPR / listwise softmax) — metric-aligned.
-2. User-history CROSSES (user×author, user×tab rates) — not user-only terms.
-3. Recency-weighted history (`add_recency_history`, variants hl2 / hl7 / last5): recent same-creator long-views should weigh more because short-video taste drifts.
-4. Sequence interest (`add_sequence_interest_model`): last-N interactions + target-aware attention so recent same-author/tab long-views can match this candidate.
-5. DeepFM+DIN (`add_deepfm_din`): FM+MLP backbone, DIN history, listwise long_view, click/like aux, censored play-time.
-6. Multi-task aux heads on is_click / is_like.
-7. Blend with smoothed item popularity.
-8. Tune lr / l2 / batch around the current-best architecture (do not change k).
+Measured on this benchmark (do not rediscover):
+- Listwise softmax and BPR on FM roll back to ~0.597 valid primary. Try once for coverage, then stop.
+- Multitask click/like and item-pop blend also rolled back near FM.
+- History crosses + lr 3e-4: ~0.6029. Recency hl7 + lr 3e-4: ~0.6032.
+- SequenceInterest (DIN, n=20, hl=7, pointwise BCE): ~0.6038, best so far. Listwise/aux/pop on DIN lost.
+
+Preferred order after reproduce_fm:
+1. add_history_crosses (user×author / user×tab rates from prior train only).
+2. add_recency_history (hl2 / hl7 / last5) stacked on history if history was kept.
+3. add_sequence_interest_model (seq_len 20 first; then 10/40, half_life, engage weights).
+4. tune_hparams on the CURRENT BEST (especially lr 3e-4 / 5e-4 / 2e-4). k stays 16.
+5. Combinations: recency + lower lr; sequence + tune_hparams; history parent then recency.
+6. Then coverage: switch_loss_listwise, switch_loss_bpr, add_multitask, blend_item_pop.
+7. add_deepfm_din last (listwise DeepFM+DIN measured ~0.596).
 
 You MUST pick operator from this catalog only:
   reproduce_fm, switch_loss_bpr, switch_loss_listwise, add_history_crosses,
   add_recency_history, add_sequence_interest_model, add_deepfm_din, add_multitask, tune_hparams, blend_item_pop
 
 First successful run of a session should be reproduce_fm if it has not been kept yet.
+Always set parent_run to the current best run_id so operators stack.
 
 Reply with a JSON object only:
 {
@@ -186,6 +193,7 @@ class Planner:
         self._client = None
 
     def _client_or_none(self):
+        load_dotenv()
         key = os.environ.get(self.llm.api_key_env) or os.environ.get("OPENAI_API_KEY")
         if not key:
             return None

@@ -281,6 +281,13 @@ def run_session(
         })
         _mark_exploration(state, budget)
         log.save_state(state)
+        prim = (metrics_valid or {}).get("primary")
+        print(
+            f"[{run_id}] {spec.operator} {decision} "
+            f"valid_primary={prim} seconds={round(time.time() - t_run, 2)} "
+            f"planner={source} best={state.get('best_primary_valid')}",
+            flush=True,
+        )
 
     _mark_exploration(state, budget)
     log.append({
