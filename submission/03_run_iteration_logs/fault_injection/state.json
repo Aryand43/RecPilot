@@ -1,0 +1,124 @@
+{
+  "best_primary_valid": 0.7897771115195765,
+  "best_run_id": "0006",
+  "best_metrics_valid": {
+    "GAUC": 0.7930894308943089,
+    "nDCG@5": 0.7864647921448441,
+    "primary": 0.7897771115195765
+  },
+  "iters_no_gain": 3,
+  "tokens_used": 0,
+  "n_attempts": 9,
+  "n_keeps": 3,
+  "n_rollbacks": 3,
+  "n_errors": 3,
+  "n_timeouts": 1,
+  "n_recoveries": 2,
+  "n_rejected": 0,
+  "n_human_interventions": 0,
+  "cooled": {
+    "run_ablation": 1
+  },
+  "tried": [
+    "reproduce_fm:{}",
+    "0001|run_ablation:{\"id\": \"T1-hist\"}",
+    "0001|run_ablation:{\"id\": \"T1-hist\"}",
+    "0001|run_ablation:{\"id\": \"T1-hist\"}",
+    "0001|run_ablation:{\"id\": \"T1-rec7\"}",
+    "0001|run_ablation:{\"id\": \"T1-rec7\"}",
+    "0001|run_ablation:{\"id\": \"T1-rec7-lr\"}",
+    "0001|run_ablation:{\"id\": \"T1-last5-lr\"}",
+    "0001|run_ablation:{\"id\": \"T2-hl2\"}"
+  ],
+  "baseline_reproduced": true,
+  "stop_reason": "max_iters",
+  "exploration_min_iters": 9,
+  "exploration_complete": true,
+  "convergence_eligible": true,
+  "beam": [
+    {
+      "run_id": "0006",
+      "primary": 0.7897771115195765,
+      "operator": "run_ablation",
+      "parent_run": "0001",
+      "last_child_operator": null,
+      "fingerprint": [
+        "fm",
+        true,
+        true,
+        "hl7",
+        false,
+        0.0,
+        0.001
+      ]
+    },
+    {
+      "run_id": "0009",
+      "primary": 0.782186833504473,
+      "operator": "run_ablation",
+      "parent_run": "0001",
+      "last_child_operator": null,
+      "fingerprint": [
+        "fm",
+        true,
+        true,
+        "hl2",
+        false,
+        0.0,
+        0.001
+      ]
+    },
+    {
+      "run_id": "0007",
+      "primary": 0.7483363147541633,
+      "operator": "run_ablation",
+      "parent_run": "0001",
+      "last_child_operator": null,
+      "fingerprint": [
+        "fm",
+        true,
+        true,
+        "hl7",
+        false,
+        0.0,
+        0.0005
+      ]
+    }
+  ],
+  "beam_configs": [
+    {
+      "run_id": "0006",
+      "primary": 0.7897771115195765,
+      "operator": "run_ablation"
+    },
+    {
+      "run_id": "0009",
+      "primary": 0.782186833504473,
+      "operator": "run_ablation"
+    },
+    {
+      "run_id": "0007",
+      "primary": 0.7483363147541633,
+      "operator": "run_ablation"
+    }
+  ],
+  "promoted": [
+    "0001",
+    "0004",
+    "0006",
+    "0007",
+    "0008",
+    "0009"
+  ],
+  "sample_iters": 0,
+  "ablation_done": [
+    "T1-hist",
+    "T1-rec7",
+    "T1-rec7-lr",
+    "T1-last5-lr",
+    "T2-hl2"
+  ],
+  "noops": [],
+  "fm_run_id": "0001",
+  "updated_at": "2026-09-01T02:56:00.251186+00:00"
+}

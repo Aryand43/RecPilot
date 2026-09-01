@@ -1,0 +1,60 @@
+{
+  "n_rows": {
+    "train": 1141112,
+    "valid": 124909,
+    "test": 170588
+  },
+  "n_users": {
+    "train": 26210,
+    "valid": 22377,
+    "test": 23875
+  },
+  "label_rate": {
+    "train": 0.33661989357749283,
+    "valid": 0.313284070803545,
+    "test": 0.31345112200154757
+  },
+  "n_videos": {
+    "train": 7538,
+    "valid": 5951,
+    "test": 5982
+  },
+  "valid_user_mix": {
+    "all_negative_pct": 30.3,
+    "all_positive_pct": 11.9,
+    "discriminative_pct": 57.8
+  },
+  "synthetic": false,
+  "official_baseline": {
+    "valid": {
+      "GAUC": 0.6674,
+      "nDCG@5": 0.5357,
+      "primary": 0.6016
+    },
+    "test": {
+      "GAUC": 0.661,
+      "nDCG@5": 0.5282,
+      "primary": 0.5946
+    },
+    "std_over_5_seeds": {
+      "test_GAUC": 0.0008,
+      "test_nDCG@5": 0.0008,
+      "test_primary": 0.0008
+    },
+    "config": {
+      "model": "FM",
+      "k": 16,
+      "lr": 0.001,
+      "batch": 8192,
+      "max_epochs": 40,
+      "patience": 4,
+      "fields": [
+        "user_id",
+        "video_id",
+        "author_id",
+        "tab",
+        "dur_bucket"
+      ]
+    }
+  }
+}

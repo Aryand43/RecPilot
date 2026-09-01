@@ -1,0 +1,156 @@
+{
+  "best_primary_valid": 0.605067755696198,
+  "best_run_id": "0015",
+  "best_metrics_valid": {
+    "GAUC": 0.6717770916514098,
+    "nDCG@5": 0.5383584197409862,
+    "primary": 0.605067755696198
+  },
+  "iters_no_gain": 29,
+  "tokens_used": 75218,
+  "n_attempts": 19,
+  "n_keeps": 7,
+  "n_rollbacks": 12,
+  "n_errors": 7,
+  "n_timeouts": 0,
+  "n_recoveries": 0,
+  "n_rejected": 11,
+  "n_human_interventions": 0,
+  "cooled": {},
+  "tried": [
+    "reproduce_fm:{}",
+    "0001|run_ablation:{\"id\": \"T1-hist\"}",
+    "0001|run_ablation:{\"id\": \"T1-rec7\"}",
+    "0001|run_ablation:{\"id\": \"T1-rec7-lr\"}",
+    "0001|run_ablation:{\"id\": \"T1-last5-lr\"}",
+    "0001|run_ablation:{\"id\": \"T2-hl2\"}",
+    "0004|bag_seeds:{\"seeds\": 3}",
+    "0007|add_gbdt_ranker:{}",
+    "0007|bag_seeds:{\"seeds\": 5}",
+    "0007|tune_hparams:{\"lr\": 0.0003}",
+    "0009|bag_seeds:{\"seeds\": 3}",
+    "0009|add_covisit_features:{}",
+    "0009|bag_seeds:{\"seeds\": 5}",
+    "0009|tune_hparams:{\"lr\": 0.0003}",
+    "0009|tune_hparams:{\"lr\": 0.001}",
+    "0009|tune_hparams:{\"lr\": 0.0002}",
+    "0009|tune_hparams:{\"lr\": 0.0005}",
+    "0009|bag_seeds:{}",
+    "0009|add_gbdt_ranker:{}",
+    "0009|blend_fm_gbdt:{\"seeds\": 3}",
+    "0015|bag_seeds:{\"seeds\": 3}",
+    "0015|tune_hparams:{\"lr\": 0.0003}",
+    "0015|bag_seeds:{\"seeds\": 5}",
+    "0015|add_covisit_features:{}",
+    "0015|tune_hparams:{\"lr\": 0.0002}",
+    "0015|tune_hparams:{\"lr\": 0.001}",
+    "0015|tune_hparams:{\"lr\": 0.0005}",
+    "0015|bag_seeds:{}",
+    "0015|add_gbdt_ranker:{}",
+    "0015|blend_fm_gbdt:{}"
+  ],
+  "baseline_reproduced": true,
+  "stop_reason": "catalog_exhausted",
+  "exploration_min_iters": 40,
+  "exploration_complete": false,
+  "convergence_eligible": false,
+  "beam": [
+    {
+      "run_id": "0015",
+      "primary": 0.605067755696198,
+      "operator": "blend_fm_gbdt",
+      "parent_run": "0009",
+      "last_child_operator": "add_gbdt_ranker",
+      "fingerprint": [
+        "blend",
+        true,
+        true,
+        "hl7",
+        false,
+        0.0,
+        0.0003
+      ]
+    },
+    {
+      "run_id": "0017",
+      "primary": 0.6048837444185238,
+      "operator": "tune_hparams",
+      "parent_run": "0015",
+      "last_child_operator": null,
+      "fingerprint": [
+        "blend",
+        true,
+        true,
+        "hl7",
+        false,
+        0.0,
+        0.001
+      ]
+    },
+    {
+      "run_id": "0018",
+      "primary": 0.6048094549246813,
+      "operator": "tune_hparams",
+      "parent_run": "0015",
+      "last_child_operator": null,
+      "fingerprint": [
+        "blend",
+        true,
+        true,
+        "hl7",
+        false,
+        0.0,
+        0.0005
+      ]
+    }
+  ],
+  "beam_configs": [
+    {
+      "run_id": "0015",
+      "primary": 0.605067755696198,
+      "operator": "blend_fm_gbdt"
+    },
+    {
+      "run_id": "0017",
+      "primary": 0.6048837444185238,
+      "operator": "tune_hparams"
+    },
+    {
+      "run_id": "0018",
+      "primary": 0.6048094549246813,
+      "operator": "tune_hparams"
+    }
+  ],
+  "promoted": [
+    "0001",
+    "0002",
+    "0003",
+    "0004",
+    "0005",
+    "0006",
+    "0007",
+    "0008",
+    "0009",
+    "0010",
+    "0011",
+    "0012",
+    "0013",
+    "0014",
+    "0015",
+    "0016",
+    "0017",
+    "0018",
+    "0019"
+  ],
+  "sample_iters": 0,
+  "ablation_done": [
+    "T1-hist",
+    "T1-rec7",
+    "T1-rec7-lr",
+    "T1-last5-lr",
+    "T2-hl2"
+  ],
+  "noops": [],
+  "fm_run_id": "0001",
+  "updated_at": "2026-09-01T02:52:41.073435+00:00"
+}

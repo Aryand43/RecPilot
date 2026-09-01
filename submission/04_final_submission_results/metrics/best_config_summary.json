@@ -1,0 +1,111 @@
+{
+  "best_run_id": "0015",
+  "best_metrics_valid": {
+    "GAUC": 0.6717770916514098,
+    "nDCG@5": 0.5383584197409862,
+    "primary": 0.605067755696198
+  },
+  "best_metrics_test": {},
+  "n_attempts": 19,
+  "n_keeps": 7,
+  "n_rollbacks": 12,
+  "n_errors": 7,
+  "n_recoveries": 0,
+  "n_timeouts": 0,
+  "n_human_interventions": 0,
+  "tokens_used": 75218,
+  "stop_reason": "catalog_exhausted",
+  "beam": [
+    {
+      "run_id": "0015",
+      "primary": 0.605067755696198,
+      "operator": "blend_fm_gbdt"
+    },
+    {
+      "run_id": "0017",
+      "primary": 0.6048837444185238,
+      "operator": "tune_hparams"
+    },
+    {
+      "run_id": "0018",
+      "primary": 0.6048094549246813,
+      "operator": "tune_hparams"
+    }
+  ],
+  "config": {
+    "data_dir": "./KuaiRand-Pure/data",
+    "runs_dir": "./runs",
+    "budget": {
+      "max_iters": 50,
+      "max_wall_s": 21600.0,
+      "max_tokens": 200000,
+      "train_timeout_s": 2400.0,
+      "keep_delta": 0.0001,
+      "converge_eps": 0.002,
+      "converge_n": 3,
+      "exploration_min_iters": 40,
+      "max_retries": 1,
+      "cooldown_iters": 2,
+      "regression_tol": 0.01,
+      "sample_iters": 0,
+      "sample_frac": 1.0,
+      "beam_size": 3,
+      "report_test_metrics": false
+    },
+    "model": {
+      "name": "blend",
+      "k": 16,
+      "lr": 0.0003,
+      "l2": 1e-06,
+      "epochs": 40,
+      "batch_size": 8192,
+      "patience": 5,
+      "seed": 0,
+      "blend_pop": 0.0,
+      "listwise_temperature": 1.0,
+      "aux_click_weight": 0.3,
+      "aux_like_weight": 0.1,
+      "seq_len": 20,
+      "seq_half_life": 7.0,
+      "play_weight": 0.05,
+      "seq_engage_click": 0.0,
+      "seq_engage_like": 0.0,
+      "seq_engage_play": 0.0,
+      "seq_listwise": false,
+      "seq_aux": false,
+      "train_frac": 1.0,
+      "es_min_delta": 1e-05,
+      "hard_neg_weight": 1.0,
+      "hard_neg_within_user": false,
+      "hard_neg_start_epoch": 3,
+      "snapshot_k": 1,
+      "bag_seeds": 3,
+      "bag_base": "fm",
+      "blend_alpha": -1.0,
+      "blend_members": [
+        "fm",
+        "gbdt"
+      ],
+      "blend_grid_step": 0.05,
+      "blend_user_alpha": false,
+      "gbdt_iters": 400,
+      "gbdt_lr": 0.06,
+      "gbdt_leaves": 63,
+      "gbdt_l2": 1.0,
+      "gbdt_covisit": true
+    },
+    "features": {
+      "use_kit_encode": false,
+      "history_crosses": true,
+      "time_features": false,
+      "recency_history": true,
+      "recency_variant": "hl7"
+    },
+    "llm": {
+      "model": "gpt-4o-mini",
+      "base_url": null,
+      "api_key_env": "OPENAI_API_KEY"
+    }
+  },
+  "autonomous": true
+}

@@ -46,7 +46,7 @@ def results_table(state: dict, official: dict) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", required=True)
-    ap.add_argument("--out", default=str(ROOT / "submission" / "kuairand-pure"))
+    ap.add_argument("--out", default=str(ROOT / "submission" / "03_run_iteration_logs"))
     args = ap.parse_args()
 
     session = Path(args.session)

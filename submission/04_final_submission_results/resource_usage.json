@@ -1,0 +1,13 @@
+{
+  "benchmark": "KuaiRand-Pure",
+  "llm_tokens_input_plus_output": 75218,
+  "agent_wall_clock_seconds": 2358.29,
+  "agent_wall_clock_hours": 0.655,
+  "iterations_used": 19,
+  "iteration_cap": 50,
+  "wall_clock_cap_hours": 6,
+  "gpu_hours": 0,
+  "hardware": "Apple M3, CPU only, no GPU at any point",
+  "manual_interventions": 0,
+  "stop_reason": "catalog_exhausted"
+}

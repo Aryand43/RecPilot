@@ -1,0 +1,3 @@
+benchmark,model,GAUC,nDCG@5,primary,NDCG@10_supplemental,Recall@50_supplemental,absolute_primary_delta_over_official_baseline,score_dataset,status
+KuaiRand-Pure,official FM baseline (published),0.6674,0.5357,0.6016,,,0.0,0.0,reference
+KuaiRand-Pure,RecPilot agent champion (blend FM+GBDT+co-visitation),0.671777,0.538358,0.605068,0.814178,0.999952,0.003468,0.003518,validation-best (scored submission)

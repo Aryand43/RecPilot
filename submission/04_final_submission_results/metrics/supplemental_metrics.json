@@ -1,0 +1,15 @@
+{
+  "split": "test",
+  "submission": "submission/kuairand-pure/submission.csv",
+  "official": {
+    "GAUC": 0.6637483090065405,
+    "nDCG@5": 0.5293014907490882,
+    "primary": 0.5965248998778143
+  },
+  "supplemental": {
+    "NDCG@10": 0.7792234103391783,
+    "Recall@50": 0.9997232463929604,
+    "evaluated_users": 17403,
+    "users_with_at_most_50_candidates": 0.997151832460733
+  }
+}

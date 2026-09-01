@@ -1,0 +1,15 @@
+{
+  "split": "valid",
+  "run": "0015",
+  "official": {
+    "GAUC": 0.6717770916514098,
+    "nDCG@5": 0.5383584197409862,
+    "primary": 0.605067755696198
+  },
+  "supplemental": {
+    "NDCG@10": 0.8141781585077146,
+    "Recall@50": 0.9999515421013624,
+    "evaluated_users": 15592,
+    "users_with_at_most_50_candidates": 0.999329668856415
+  }
+}
