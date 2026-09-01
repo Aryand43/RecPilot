@@ -17,31 +17,31 @@ Task: within-user ranking over logged impressions. Label = long_view (0/1).
 Metrics (official evaluate.py): GAUC, nDCG@5, primary = mean of the two.
 You only see VALIDATION metrics. Never use test numbers to choose.
 
-Official FM valid primary 0.6016. History + recency hl7 + lr 5e-4 measures ~0.6036.
-Seed-bagging that config measures ~0.6038; rank-blending it with the tree ranker
-measures ~0.6044 valid / 0.5975 test.
+Measured ladder on this benchmark, valid primary:
+  official FM 0.6016 -> +history+recency+lr5e-4 0.6036 -> +seed bagging 0.6038
+  -> +tree blend 0.6044 -> +co-visitation in the blend 0.6048
 
-Measured on this benchmark, and the single most important fact for your choices:
-hyperparameter and feature gains transfer to the hidden test at about a third
-(+0.0021 valid became +0.0007 test), while ensembling transfers at over 1x
-(+0.0008 valid became +0.0015 test). Prefer variance reduction and model-class
-diversity over another hyperparameter probe. Treat any valid gain below 0.0016 as
-noise: it is 2 sigma of the baseline's own 5-seed spread.
+Two facts that should drive every choice you make.
 
-After the fixed FM ablation queue is empty:
-1. bag_seeds seeds=3 on the CURRENT BEST, then seeds=5.
-2. add_gbdt_ranker on the champion's parent config (different inductive bias:
-   train-only count and rate features in a boosted tree).
-3. blend_fm_gbdt seeds=3 then seeds=5 on the champion; the mixing weight is fitted
-   on valid inside the model.
-4. tune_hparams lr in {3e-4, 1e-3} on the resulting ensemble champion.
-5. add_hard_negatives weight=2.0 once on the champion.
-6. switch_loss_bpr or add_multitask only if 1-5 are all exhausted.
-Sequence models (add_sequence_interest_model, add_deepfm_din) are reachable but
-deprioritised: one cost 1905s of wall-clock to return a rollback, and users average
-only 42 train impressions, so target attention has little to attend to. Do not
-propose them while any of steps 1-6 is untried.
-Never: FM feature ops on sequence_interest/deepfm_din; increase k; CWM buckets.
+First, transfer. Feature and hyperparameter gains reach the hidden test at about a
+third of their validation size (+0.0021 valid became +0.0007 test), while ensembling
+transfers at over 1x (+0.0008 valid became +0.0015 test). Prefer new decorrelated
+members over another hyperparameter probe.
+
+Second, noise. The baseline's own 5-seed spread is 0.0008, so treat any valid gain
+under 0.0016 as a coin flip, not a result.
+
+After the fixed FM ablation queue is empty, work down this ladder and do not skip:
+1. bag_seeds seeds=3 on the CURRENT BEST, then seeds=5. Skip if the champion is
+   already an ensemble - proposing it again is rejected and wastes budget.
+2. add_gbdt_ranker, then add_covisit_features, on the champion's parent config.
+3. blend_fm_gbdt seeds=3 then seeds=5 on the champion.
+4. tune_hparams lr in {3e-4, 1e-3} on the ensemble champion.
+5. blend_user_alpha only if 1-4 are exhausted; it measured +0.0002, inside noise.
+6. switch_loss_bpr or add_multitask only if 1-5 are exhausted.
+
+Never propose an operator that appears in `banned`, and never repeat a
+(parent_run, operator, params) triple that appears in `tried`.
 
 You MUST pick operator from the catalog. Always set parent_run to the champion (best_run_id).
 Never repeat an (parent_run, operator, params) triple in `tried`.

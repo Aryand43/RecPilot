@@ -87,10 +87,19 @@ def test_simplex_weights_sum_to_one_and_are_non_negative():
         assert all(x >= 0 for x in w)
 
 
-def test_blend_add_bpr_declares_three_members():
-    cfg = apply_operator(official_defaults(), "blend_add_bpr", {})
-    assert cfg.model.name == "blend"
-    assert cfg.model.blend_members == ["fm", "bpr", "gbdt"]
+def test_retired_operators_are_banned_with_their_measurement():
+    """Refuted ideas stay documented and unreachable, not silently deleted."""
+    for op in ("blend_add_bpr", "add_snapshot_ensemble", "add_hard_negatives_within_user"):
+        with pytest.raises(ValueError, match="banned"):
+            apply_operator(official_defaults(), op, {})
+
+
+def test_n_member_blend_still_supports_three_members():
+    """The operator is retired but the machinery it needed must keep working."""
+    cfg = official_defaults()
+    cfg.model.name = "blend"
+    cfg.model.blend_members = ["fm", "bpr", "gbdt"]
+    assert len(simplex_grid(len(cfg.model.blend_members), 0.1)) == 66
 
 
 # ---------------------------------------------------------------- snapshots
@@ -119,8 +128,9 @@ def test_single_snapshot_is_a_plain_predict():
     assert list(predict_snapshots(m, np.zeros((2, 1)), [])) == [7.0, 7.0]
 
 
-def test_snapshot_operator_sets_k():
-    cfg = apply_operator(official_defaults(), "add_snapshot_ensemble", {"k": 4})
+def test_snapshot_machinery_still_works_though_retired():
+    cfg = official_defaults()
+    cfg.model.snapshot_k = 4
     assert cfg.model.snapshot_k == 4
 
 

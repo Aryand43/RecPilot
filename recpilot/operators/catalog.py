@@ -20,8 +20,8 @@ OPERATORS = (
     "bag_seeds",
     "add_gbdt_ranker",
     "blend_fm_gbdt",
-    "blend_add_bpr",
-    "add_snapshot_ensemble",
+    "add_covisit_features",
+    "blend_user_alpha",
 )
 
 BANNED = {
@@ -38,6 +38,26 @@ BANNED = {
         "Redundant with the FM's own first-order weight on video_id, which already is a jointly "
         "fitted item-popularity term. Three alphas measured (0.05 / 0.1 / 0.2): 0.6036 / 0.6034 / "
         "0.6032 against a 0.6036 champion. Best case is an exact tie."
+    ),
+    "add_hard_negatives_within_user": (
+        "Measured -0.0030 valid against a 0.6036 champion, and worse than the global "
+        "rule it was meant to fix (-0.0013). With a 34% positive rate and ~42 train "
+        "impressions per user, a user's weakest positive sits low, so nearly every "
+        "negative clears the bar and oversampling just distorts class balance."
+    ),
+    "add_snapshot_ensemble": (
+        "Measured -0.0004 valid. Adjacent epochs of one trajectory are highly "
+        "correlated, so averaging them adds no diversity, unlike independent seeds."
+    ),
+    "blend_add_bpr": (
+        "A pairwise-loss third member added +0.0001 valid to the blend. Its errors "
+        "are not decorrelated enough from the pointwise FM to pay for the fit."
+    ),
+    "add_deepfm_din": (
+        "DeepFM+DIN measured no gain on this benchmark and is expensive. Users average "
+        "42 train impressions; the LinkedIn Feed SR paper that motivates this family "
+        "reports sequence length as the dominant scaling lever at T=1000, which is 24x "
+        "more history than exists here."
     ),
     "add_watch_time_ranker": (
         "Label leakage: scores a row by its own play_time_ms, and long_view is a "
@@ -59,10 +79,8 @@ PRIORITY = [
     "tune_hparams",
     "bag_seeds",
     "add_gbdt_ranker",
+    "add_covisit_features",
     "blend_fm_gbdt",
-    "blend_add_bpr",
-    "add_snapshot_ensemble",
-    "add_hard_negatives",
     "switch_loss_bpr",
     "add_multitask",
 ]
@@ -270,6 +288,32 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
         cfg.model.blend_alpha = -1.0
         cfg.model.bag_seeds = max(2, min(5, int(p.get("seeds", 3))))
         return cfg
+
+    if operator == "add_covisit_features":
+        # Item-item co-visitation over train long-views. The FM factorises the
+        # user-item matrix at rank 16; co-visitation is local and full-rank, so it
+        # expresses adjacency the FM cannot. Only the tree ranker consumes it.
+        if parent.model.name not in ("gbdt", "blend"):
+            cfg.model.name = "gbdt"
+        cfg.model.gbdt_covisit = True
+        return cfg
+
+    if operator == "blend_user_alpha":
+        # One weight vector per user-activity bucket instead of one globally.
+        if parent.model.name != "blend":
+            cfg.model.name = "blend"
+            cfg.model.bag_base = parent.model.name if parent.model.name != "blend" else "fm"
+        cfg.model.blend_user_alpha = True
+        return cfg
+
+    if operator == "add_hard_negatives_within_user":
+        # GAUC/nDCG are within-user, so a negative is hard relative to its own
+        # user's weakest positive, not to a global threshold. The global variant
+        # rolled back on this benchmark.
+        cfg.model.hard_neg_within_user = True
+        cfg.model.hard_neg_weight = float(p.get("weight", 2.0))
+        cfg.model.hard_neg_start_epoch = int(p.get("start_epoch", 3))
+        return _exploration_es(cfg)
 
     if operator == "add_snapshot_ensemble":
         # Average the top-K epoch checkpoints of a single fit: variance reduction

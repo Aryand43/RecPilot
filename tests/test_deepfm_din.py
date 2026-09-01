@@ -1,4 +1,10 @@
-"""Leakage + synthetic smoke for add_deepfm_din."""
+"""Leakage + synthetic smoke for the DeepFM+DIN scorer.
+
+The `add_deepfm_din` operator is banned from the planner's search space (no
+measured gain, and the sequence length that makes this family work is absent
+here), but the scorer itself must keep working, so this builds the config
+directly rather than through the catalog.
+"""
 from __future__ import annotations
 
 import math
@@ -63,7 +69,11 @@ class RichSequenceLeakageTests(unittest.TestCase):
 
 class DeepFMSmokeTests(unittest.TestCase):
     def test_synthetic_train_and_score(self):
-        cfg = apply_operator(official_defaults(), "add_deepfm_din", {"seq_len": 20})
+        cfg = official_defaults()
+        cfg.model.name = "deepfm_din"
+        cfg.model.seq_len = 20
+        cfg.features.use_kit_encode = False
+        cfg.features.history_crosses = False
         cfg.model.epochs = 2
         result = train_and_score(cfg, to_rich(make_synthetic()), include_test=False)
         primary = float(result["metrics_valid"]["primary"])

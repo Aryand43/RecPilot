@@ -59,6 +59,7 @@ def default_state() -> dict[str, Any]:
         "n_errors": 0,
         "n_timeouts": 0,
         "n_recoveries": 0,
+        "n_rejected": 0,
         "n_human_interventions": 0,
         "cooled": {},
         "tried": [],

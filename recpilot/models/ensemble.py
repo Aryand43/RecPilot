@@ -12,6 +12,7 @@ common scale by per-user rank before averaging.
 """
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any, Optional
 
 import numpy as np
@@ -165,6 +166,13 @@ class BlendEnsemble(_NeedsDataDir):
     decision.
     """
 
+    # User activity buckets by prior train impressions. Rich-history users are where
+    # the embedding member has enough to work with; sparse users lean on the tree's
+    # count features. Four buckets is the ceiling on validation-fitted parameters we
+    # are willing to spend — per-user fitting would just fit the validation week.
+    BUCKETS = (0, 5, 15, 40, 1 << 30)
+    MIN_BUCKET_ROWS = 2000
+
     def __init__(self, dim: int, cfg: ModelConfig, verbose: bool = False):
         self.dim, self.cfg, self.verbose = dim, cfg, verbose
         names = [n.strip() for n in (getattr(cfg, "blend_members", None)
@@ -181,6 +189,9 @@ class BlendEnsemble(_NeedsDataDir):
                 c.bag_base = name
                 self.members.append(SeedBagFM(dim, c, verbose=verbose))
         self.weights: Optional[tuple[float, ...]] = None
+        self.weights_by_bucket: Optional[dict[int, tuple[float, ...]]] = None
+        self.user_bucket: dict[str, int] = {}
+        self.by_bucket = bool(getattr(cfg, "blend_user_alpha", False))
         fixed = float(getattr(cfg, "blend_alpha", -1.0))
         if fixed >= 0 and len(names) == 2:
             self.weights = (1.0 - fixed, fixed)      # back-compat with the 2-member knob
@@ -229,7 +240,10 @@ class BlendEnsemble(_NeedsDataDir):
                     f"{n}={w:.2f}" for n, w in zip(self.member_names, self.weights))
                     + f" (valid primary {best[0]:.4f})")
 
-        blended = sum(wi * r for wi, r in zip(self.weights, ranks))
+        if self.by_bucket:
+            self._fit_bucket_weights(enc, raw_splits, ranks)
+
+        blended = self._mix(ranks, uva)
         self.train_stats = TrainStats(
             best_primary=float(official_score(uva, yva, blended)["primary"]),
             epochs_trained=sum(int(getattr(getattr(m, "train_stats", None),
@@ -238,6 +252,60 @@ class BlendEnsemble(_NeedsDataDir):
         )
         return self
 
+    def _bucket_of(self, users: list) -> np.ndarray:
+        return np.array([self.user_bucket.get(str(u), 0) for u in users], dtype=np.int32)
+
+    def _fit_bucket_weights(self, enc: dict, raw_splits: dict, ranks: list) -> None:
+        """One weight vector per user-activity bucket, fitted on valid.
+
+        A bucket with too few validation rows keeps the global weights: fitting a
+        simplex on a few hundred rows is noise, not personalization.
+        """
+        _, yva, uva, _ = enc["valid"]
+        hist = Counter(str(r["user_id"]) if isinstance(r, dict) else str(r[1])
+                       for r in raw_splits["train"])
+        self.user_bucket = {
+            u: int(np.searchsorted(self.BUCKETS, n, "right") - 1) for u, n in hist.items()
+        }
+        bidx = self._bucket_of(uva)
+        step = self.step if len(self.members) == 2 else max(self.step, 0.1)
+        grid = simplex_grid(len(self.members), step)
+        out: dict[int, tuple[float, ...]] = {}
+        for b in range(len(self.BUCKETS) - 1):
+            m = bidx == b
+            n = int(m.sum())
+            if n < self.MIN_BUCKET_ROWS:
+                out[b] = self.weights
+                if self.verbose:
+                    print(f"  bucket {b}: {n} rows -> global weights")
+                continue
+            sel = np.flatnonzero(m)
+            u_b = [uva[i] for i in sel]
+            y_b = np.asarray(yva)[sel]
+            r_b = [r[sel] for r in ranks]
+            best = (-1.0, self.weights)
+            for w in grid:
+                p = official_score(u_b, y_b, sum(wi * r for wi, r in zip(w, r_b)))["primary"]
+                if p > best[0]:
+                    best = (p, w)
+            out[b] = best[1]
+            if self.verbose:
+                print(f"  bucket {b}: {n} rows -> " +
+                      ", ".join(f"{nm}={wi:.2f}" for nm, wi in zip(self.member_names, best[1])))
+        self.weights_by_bucket = out
+
+    def _mix(self, ranks: list, users: list) -> np.ndarray:
+        """Blend member ranks, per-bucket when bucket weights were fitted."""
+        if not self.weights_by_bucket:
+            return sum(wi * r for wi, r in zip(self.weights, ranks))
+        bidx = self._bucket_of(users)
+        out = np.zeros(len(bidx), dtype=np.float64)
+        for b, w in self.weights_by_bucket.items():
+            m = bidx == b
+            if m.any():
+                out[m] = sum(wi * r[m] for wi, r in zip(w, ranks))
+        return out
+
     @property
     def alpha(self) -> float:
         """Weight on the last member. Kept for the 2-member reporting path."""
@@ -245,7 +313,7 @@ class BlendEnsemble(_NeedsDataDir):
 
     def predict_ensemble(self, X: np.ndarray, users: list, rows: list) -> np.ndarray:
         assert self.weights is not None, "fit() first"
-        return sum(w * r for w, r in zip(self.weights, self._ranks(X, users, rows)))
+        return self._mix(self._ranks(X, users, rows), users)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         raise TypeError("BlendEnsemble needs user ids and rows; call predict_ensemble(...)")

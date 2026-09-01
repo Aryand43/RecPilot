@@ -29,6 +29,11 @@ from recpilot.operators.catalog import apply_operator
 from recpilot.paths import BASELINE_SCORES
 
 
+# A rejected spec costs LLM tokens but does not advance n_attempts, so an unbroken
+# run of them is a budget leak, not progress. Stop rather than spend the budget.
+MAX_CONSECUTIVE_REJECTS = 8
+
+
 def _catalog_fingerprint() -> dict[str, Any]:
     """Hash of the operator catalog plus the operator and banned lists."""
     import hashlib
@@ -169,6 +174,7 @@ def run_session(
     t0 = time.time()
     last_error: Optional[str] = None
     retry_for_error = 0
+    consecutive_rejects = 0
     state["sample_iters"] = budget.sample_iters
     state.setdefault("beam", [])
     state.setdefault("promoted", [])
@@ -273,12 +279,32 @@ def run_session(
                 "error": str(e),
                 "spec": spec_dict,
                 "planner": source,
+                "tokens": tokens,
             })
+            # Record it as tried and cool the operator down. Without this the planner
+            # re-proposes the same invalid spec indefinitely: one run burned 69 LLM
+            # calls (~190k tokens) on a single no-op and died on max_tokens after 13
+            # real iterations, because a rejection consumes budget without advancing
+            # n_attempts.
+            tried = list(state.get("tried") or [])
+            tried.append(_tried_key(spec_dict["operator"], spec_dict.get("params") or {}, parent_id))
+            state["tried"] = tried
+            cooled = dict(state.get("cooled") or {})
+            cooled[spec_dict["operator"]] = budget.cooldown_iters
+            state["cooled"] = cooled
+            state["n_rejected"] = int(state.get("n_rejected", 0)) + 1
+            consecutive_rejects += 1
             last_error = str(e)
             state["n_errors"] += 1
             state["iters_no_gain"] += 1
             _mark_exploration(state, budget)
             log.save_state(state)
+            if consecutive_rejects >= MAX_CONSECUTIVE_REJECTS:
+                state["stop_reason"] = "rejected_spec_loop"
+                log.append({"event": "rejected_spec_loop",
+                            "consecutive": consecutive_rejects,
+                            "note": "planner could not produce a runnable spec"})
+                break
             continue
 
         if parent_id and fingerprints_equal(cfg, parent_cfg):
@@ -293,10 +319,16 @@ def run_session(
             state["tried"] = tried
             last_error = "duplicate fingerprint"
             state["iters_no_gain"] += 1
+            state["n_rejected"] = int(state.get("n_rejected", 0)) + 1
+            consecutive_rejects += 1
             _mark_exploration(state, budget)
             log.save_state(state)
+            if consecutive_rejects >= MAX_CONSECUTIVE_REJECTS:
+                state["stop_reason"] = "rejected_spec_loop"
+                break
             continue
 
+        consecutive_rejects = 0
         state["n_attempts"] += 1
         run_id = _next_run_id(state["n_attempts"])
         # reproduce_fm stays on 100% so the official gate is comparable.
