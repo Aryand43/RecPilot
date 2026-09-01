@@ -99,18 +99,28 @@ python3 kuairand-starter-kit/submit.py --check --split test --data_dir ./KuaiRan
 | operator | Change |
 |---|---|
 | `reproduce_fm` | Official FM (`k=16`, `lr=1e-3`, batch 8192, patience 4) |
-| `switch_loss_listwise` | Softmax CE over each user's train impressions |
 | `switch_loss_bpr` | Pairwise BPR on within-user pos/neg pairs |
 | `add_history_crosses` | Prior-train user×author / user×tab long-view buckets + recent-author count |
 | `add_multitask` | Shared-embedding aux heads on `is_click` / `is_like` |
 | `tune_hparams` | lr / l2 / batch around the **current-best** architecture (`k` stays 16) |
-| `blend_item_pop` | Convex blend of model logits and kit item-pop |
 | `bag_seeds` | Rank-average N seeds of the current-best config |
 | `add_gbdt_ranker` | Boosted tree over train-only count/rate features |
 | `blend_fm_gbdt` | Rank-blend the bagged FM with the tree ranker; weight fitted on valid |
 
-**Banned:** CWM static user buckets, increasing `k`, user-only first-order features,
-and `add_watch_time_ranker` — see [Leakage policy](#leakage-policy).
+**Banned, each with the measurement that retired it:**
+
+| operator | why |
+|---|---|
+| `add_watch_time_ranker` | Label leakage — see [Leakage policy](#leakage-policy) |
+| `switch_loss_listwise` | 0.5967 and 0.5989 valid vs a 0.6036 champion. Users average 5.6 impressions, so softmax-CE groups carry almost no ranking signal |
+| `blend_item_pop` | Redundant with the FM's own `video_id` first-order weight. Alphas 0.05/0.1/0.2 gave 0.6036/0.6034/0.6032 — best case an exact tie |
+| `add_cwm_static_fields` | Organizers measured it: no gain |
+| `increase_k` | Organizers measured k=8/16/32: capacity is not the bottleneck |
+| `user_only_first_order` | User-constant terms cannot change within-user order |
+
+Sequence models stay reachable but are never prioritised: `add_sequence_interest_model`
+cost 1905s of wall-clock to return a rollback, and users average only 42 train
+impressions, so target attention has little to attend to.
 
 ## Leakage policy
 

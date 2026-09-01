@@ -28,12 +28,17 @@ class NoOpGuardTests(unittest.TestCase):
             apply_operator(parent, "add_history_crosses", {})
         self.assertIn("deepfm_din", str(ctx.exception))
 
-    def test_reject_listwise_and_hard_neg_on_sequence(self):
+    def test_reject_fm_feature_ops_on_sequence(self):
         parent = apply_operator(official_defaults(), "add_sequence_interest_model", {})
         with self.assertRaises(ValueError):
-            apply_operator(parent, "switch_loss_listwise", {"temperature": 1.0})
-        with self.assertRaises(ValueError):
             apply_operator(parent, "add_hard_negatives", {"weight": 2.0})
+
+    def test_measured_dead_ends_are_banned(self):
+        """Operators this benchmark measured as harmful or redundant stay unreachable."""
+        for op, params in (("switch_loss_listwise", {"temperature": 1.0}),
+                           ("blend_item_pop", {"alpha": 0.1})):
+            with self.assertRaises(ValueError, msg=op):
+                apply_operator(official_defaults(), op, params)
 
     def test_history_on_fm_is_allowed(self):
         cfg = apply_operator(official_defaults(), "add_history_crosses", {})
@@ -60,8 +65,11 @@ class FingerprintTests(unittest.TestCase):
 
     def test_lr_and_blend_in_fingerprint(self):
         a = apply_operator(official_defaults(), "tune_hparams", {"lr": 0.0005})
-        b = apply_operator(official_defaults(), "blend_item_pop", {"alpha": 0.1})
         self.assertNotEqual(config_fingerprint(a), config_fingerprint(official_defaults()))
+        # blend_pop is no longer reachable via an operator (blend_item_pop is banned),
+        # but the field survives on the config, so the fingerprint must still see it.
+        b = official_defaults()
+        b.model.blend_pop = 0.1
         self.assertNotEqual(config_fingerprint(b), config_fingerprint(official_defaults()))
 
     def test_same_lr_tune_equals_parent_fingerprint(self):
@@ -85,16 +93,13 @@ class AblationQueueTests(unittest.TestCase):
             "T1-rec7",
             "T1-rec7-lr",
             "T1-last5-lr",
-            "T2-hist-listwise",
-            "T2-rec7-pop10",
             "T2-hl2",
-            "T2-rec7-lr-pop05",
         ])
 
     def test_next_ablation_consumes_in_order(self):
         state = default_state()
         seen = []
-        for _ in range(8):
+        for _ in range(len(ABLATION_QUEUE)):
             item = next_ablation(state)
             self.assertIsNotNone(item)
             seen.append(item["id"])
@@ -147,9 +152,6 @@ class AblationQueueTests(unittest.TestCase):
         tried = []
         for lr in (0.0003, 0.0002, 0.001, 0.0005):
             tried.append(f"{parent}|tune_hparams:" + json.dumps({"lr": lr}, sort_keys=True))
-        for a in (0.05, 0.1, 0.2):
-            tried.append(f"{parent}|blend_item_pop:" + json.dumps({"alpha": a}, sort_keys=True))
-        tried.append(f"{parent}|switch_loss_listwise:" + json.dumps({"temperature": 1.0}, sort_keys=True))
         tried.append(f"{parent}|add_hard_negatives:" + json.dumps({"weight": 2.0}, sort_keys=True))
         tried.append(f"{parent}|add_sequence_interest_model:" + json.dumps({"seq_len": 20}, sort_keys=True))
         for op in ("bag_seeds", "add_gbdt_ranker", "blend_fm_gbdt"):
@@ -168,10 +170,7 @@ class AblationQueueTests(unittest.TestCase):
             "T1-rec7": {"name": "fm", "lr": 0.001, "blend": 0.0, "history": True, "recency": True, "variant": "hl7"},
             "T1-rec7-lr": {"name": "fm", "lr": 0.0005, "blend": 0.0, "history": True, "recency": True, "variant": "hl7"},
             "T1-last5-lr": {"name": "fm", "lr": 0.0005, "blend": 0.0, "history": True, "recency": True, "variant": "last5"},
-            "T2-hist-listwise": {"name": "listwise", "lr": 0.001, "blend": 0.0, "history": True, "recency": False},
-            "T2-rec7-pop10": {"name": "fm", "lr": 0.001, "blend": 0.1, "history": True, "recency": True, "variant": "hl7"},
             "T2-hl2": {"name": "fm", "lr": 0.001, "blend": 0.0, "history": True, "recency": True, "variant": "hl2"},
-            "T2-rec7-lr-pop05": {"name": "fm", "lr": 0.0005, "blend": 0.05, "history": True, "recency": True, "variant": "hl7"},
         }
         for aid, expect in cases.items():
             cfg = apply_operator(official_defaults(), "run_ablation", {"id": aid})

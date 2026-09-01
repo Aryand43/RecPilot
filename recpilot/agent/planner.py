@@ -17,15 +17,30 @@ Task: within-user ranking over logged impressions. Label = long_view (0/1).
 Metrics (official evaluate.py): GAUC, nDCG@5, primary = mean of the two.
 You only see VALIDATION metrics. Never use test numbers to choose.
 
-Official FM valid primary 0.6016. History + recency hl7 + lr 5e-4 measured ~0.6036 valid.
-Listwise on vanilla FM hurts (~0.595). Sequence+history/recency is a NO-OP — never do that.
+Official FM valid primary 0.6016. History + recency hl7 + lr 5e-4 measures ~0.6036.
+Seed-bagging that config measures ~0.6038; rank-blending it with the tree ranker
+measures ~0.6044 valid / 0.5975 test.
+
+Measured on this benchmark, and the single most important fact for your choices:
+hyperparameter and feature gains transfer to the hidden test at about a third
+(+0.0021 valid became +0.0007 test), while ensembling transfers at over 1x
+(+0.0008 valid became +0.0015 test). Prefer variance reduction and model-class
+diversity over another hyperparameter probe. Treat any valid gain below 0.0016 as
+noise: it is 2 sigma of the baseline's own 5-seed spread.
 
 After the fixed FM ablation queue is empty:
-1. tune_hparams lr in {3e-4, 2e-4, 1e-3} on the CURRENT BEST (champion).
-2. blend_item_pop alpha in {0.05, 0.1, 0.2} on champion.
-3. switch_loss_listwise once, only if champion is still pointwise FM with history.
-4. add_hard_negatives weight=2.0 once on champion.
-5. add_sequence_interest_model seq_len=20 on FM parent only if nothing beat FM+1e-4.
+1. bag_seeds seeds=3 on the CURRENT BEST, then seeds=5.
+2. add_gbdt_ranker on the champion's parent config (different inductive bias:
+   train-only count and rate features in a boosted tree).
+3. blend_fm_gbdt seeds=3 then seeds=5 on the champion; the mixing weight is fitted
+   on valid inside the model.
+4. tune_hparams lr in {3e-4, 1e-3} on the resulting ensemble champion.
+5. add_hard_negatives weight=2.0 once on the champion.
+6. switch_loss_bpr or add_multitask only if 1-5 are all exhausted.
+Sequence models (add_sequence_interest_model, add_deepfm_din) are reachable but
+deprioritised: one cost 1905s of wall-clock to return a rollback, and users average
+only 42 train impressions, so target attention has little to attend to. Do not
+propose them while any of steps 1-6 is untried.
 Never: FM feature ops on sequence_interest/deepfm_din; increase k; CWM buckets.
 
 You MUST pick operator from the catalog. Always set parent_run to the champion (best_run_id).
@@ -154,14 +169,12 @@ def _heuristic_spec(state: dict[str, Any], last_error: Optional[str]) -> dict[st
 
 def _default_hypothesis(op: str) -> str:
     return {
-        "switch_loss_listwise": "Listwise softmax-CE over each user's impression list matches GAUC/nDCG better than pointwise logloss.",
         "switch_loss_bpr": "Pairwise BPR pushes long-view items above non-long-view items for the same user.",
         "add_history_crosses": "User×author and user×tab long-view rates from prior train history add crosses the 5-field FM never saw.",
         "add_recency_history": "Recent same-creator/tab long-views should weigh more than stale ones because short-video taste drifts.",
         "add_sequence_interest_model": "Last-N interactions plus target-aware attention (only after FM ablation fails).",
         "add_deepfm_din": "DeepFM plus DIN — last-resort coverage.",
         "add_multitask": "Click/like aux heads regularize shared embeddings for the long_view ranking head.",
-        "blend_item_pop": "s += alpha * log(1+item long_view rate) is a cheap nDCG@5 calibration from train-only popularity.",
         "tune_hparams": "Tune lr around the current-best model; do not increase k.",
         "add_hard_negatives": "Up-weight false positives (high score, long_view=0) on the champion FM.",
         "retrain_full_data": "Promote a beam config from a train subsample to 100% train.",

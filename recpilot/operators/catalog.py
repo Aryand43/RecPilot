@@ -8,14 +8,12 @@ from recpilot.config import Settings
 OPERATORS = (
     "reproduce_fm",
     "switch_loss_bpr",
-    "switch_loss_listwise",
     "add_history_crosses",
     "add_recency_history",
     "add_sequence_interest_model",
     "add_deepfm_din",
     "add_multitask",
     "tune_hparams",
-    "blend_item_pop",
     "add_hard_negatives",
     "retrain_full_data",
     "run_ablation",
@@ -28,6 +26,17 @@ BANNED = {
     "add_cwm_static_fields": "Organizers already measured this: primary 0.5940 vs 0.5950, noise.",
     "increase_k": "Organizers already measured k=8/16/32: no gain. Capacity is not the bottleneck.",
     "user_only_first_order": "Within-user ranking: user-constant terms do not change order.",
+    "switch_loss_listwise": (
+        "Measured twice on this benchmark: 0.5967 from the ablation queue and 0.5989 from the "
+        "planner, against a 0.6036 pointwise champion. Softmax-CE information per group scales "
+        "with group size, and users average 5.6 impressions, so it trades 1.14M calibrated "
+        "pointwise examples for ranking signal from groups of ~3."
+    ),
+    "blend_item_pop": (
+        "Redundant with the FM's own first-order weight on video_id, which already is a jointly "
+        "fitted item-popularity term. Three alphas measured (0.05 / 0.1 / 0.2): 0.6036 / 0.6034 / "
+        "0.6032 against a 0.6036 champion. Best case is an exact tie."
+    ),
     "add_watch_time_ranker": (
         "Label leakage: scores a row by its own play_time_ms, and long_view is a "
         "deterministic function of play time (>18s => 1 on 100% of train rows). "
@@ -36,28 +45,28 @@ BANNED = {
 }
 
 # Search order for heuristic / beam children. retrain_full_data is injected by the loop.
+# Ensembling comes before the sequence family: on this benchmark hyperparameter and
+# feature gains transferred to test at ~33% (champion vs official FM: +0.0021 valid ->
+# +0.0007 test) while ensembling transferred at ~188% (blend vs champion: +0.0008 valid
+# -> +0.0015 test). The sequence models are kept reachable but never prioritised —
+# add_sequence_interest_model cost 1905s for a rollback.
 PRIORITY = [
     "reproduce_fm",
     "add_history_crosses",
     "add_recency_history",
     "tune_hparams",
-    "blend_item_pop",
-    "switch_loss_listwise",
-    "add_hard_negatives",
-    "add_sequence_interest_model",
-    "switch_loss_bpr",
-    "add_multitask",
-    "add_deepfm_din",
     "bag_seeds",
     "add_gbdt_ranker",
     "blend_fm_gbdt",
+    "add_hard_negatives",
+    "switch_loss_bpr",
+    "add_multitask",
 ]
 
 FM_FEATURE_OPS = frozenset({
     "add_history_crosses",
     "add_recency_history",
     "switch_loss_bpr",
-    "switch_loss_listwise",
     "add_hard_negatives",
 })
 SEQUENCE_FAMILY = frozenset({"sequence_interest", "deepfm_din"})
@@ -139,14 +148,6 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
             cfg.model.lr = float(p["lr"])
         return _exploration_es(cfg)
 
-    if operator == "switch_loss_listwise":
-        cfg.model.name = "listwise"
-        if "lr" in p:
-            cfg.model.lr = float(p["lr"])
-        if "temperature" in p:
-            cfg.model.listwise_temperature = float(p["temperature"])
-        return _exploration_es(cfg)
-
     if operator == "add_history_crosses":
         cfg.features.history_crosses = True
         cfg.features.use_kit_encode = False
@@ -221,10 +222,6 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
             cfg.model.batch_size = int(p["batch_size"])
         if "epochs" in p:
             cfg.model.epochs = int(p["epochs"])
-        return _exploration_es(cfg)
-
-    if operator == "blend_item_pop":
-        cfg.model.blend_pop = float(p.get("alpha", p.get("blend_pop", 0.1)))
         return _exploration_es(cfg)
 
     if operator == "add_hard_negatives":
