@@ -250,5 +250,6 @@ scripts/run_agent.py
 scripts/write_report.py
 scripts/run_multiseed.py
 runs/                   # session artifacts (gitignored)
+techjam_tiktok_slides.pdf  # presentation deck
 ```
 
