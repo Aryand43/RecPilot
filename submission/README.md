@@ -2,7 +2,7 @@
 
 Every judging criterion below points at the file that evidences it.
 
-## Headline result
+## Headline result (validation-best, as deliverable 4 requires)
 
 | KuaiRand-Pure validation | GAUC | nDCG@5 | primary |
 |---|---:|---:|---:|
@@ -13,25 +13,27 @@ Every judging criterion below points at the file that evidences it.
 `score_dataset` (mean of the two metric deltas, per the judging formula) = **+0.003468**.
 Supplemental: NDCG@10 0.814178, Recall@50 0.999952.
 
-### Seed variance, stated plainly
-
-The submitted checkpoint is the validation-best one, as the rules require, and that
-checkpoint scores 0.605068. Re-fitting the same configuration under three seeds gives:
-
-| seed | primary |
-|---|---:|
-| 0 (submitted) | 0.6051 |
-| 1 | 0.6045 |
-| 2 | 0.6039 |
-
-Mean 0.6045, std 0.0005, so the headline figure is the most favourable of three draws.
-The seed-mean delta over baseline is +0.0029, which still clears the 0.0016 noise floor
-(2 sigma of the official baseline's own 5-seed spread). Full detail in
-`04_final_submission_results/metrics/champion_verification.json`.
-
 The scored submission is `04_final_submission_results/files/kuairand_pure.csv` -
 170,588 rows, `row_id,user_id,video_id,score`, validated by the unmodified Starter
 Kit checker.
+
+## Reliability of that figure
+
+Two notes we would rather state than have a reader discover.
+
+**Seed spread.** The submitted checkpoint is the validation-best one, as the rules
+require, and it genuinely scores 0.605068. Re-fitting the same configuration under
+three seeds gives 0.6051 / 0.6045 / 0.6039: mean 0.6045, std 0.0005. So the headline
+is the strongest of three draws. The seed-mean delta of +0.0029 still clears the
+0.0016 noise floor, which is 2 sigma of the official baseline's own 5-seed spread, so
+the result survives re-seeding rather than depending on a lucky draw. Detail in
+`04_final_submission_results/metrics/champion_verification.json`.
+
+**Post-hoc test figures.** `metrics/supplemental_metrics.json` holds test-split
+numbers. They were computed once, after the run converged and the checkpoint was
+frozen, and fed no decision of any kind: `report_test_metrics` was false for the
+entire scored run, so no test label was read while the agent was selecting. They are
+included for transparency, not as the reported result.
 
 ## Criterion -> evidence
 

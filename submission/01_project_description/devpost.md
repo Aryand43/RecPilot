@@ -7,7 +7,9 @@ propose → train → evaluate → keep/rollback loop over a curated operator ca
 selects only on validation and never reads a test label. On the required benchmark it
 reaches validation primary **0.605068** against the official **0.601600**, an absolute
 delta of **+0.003468**, in 19 iterations, 0.655 hours of CPU, 75k LLM tokens, and
-**zero manual interventions**.
+**zero manual interventions**. Re-fitting that configuration under three seeds gives a
+mean of 0.6045 (std 0.0005), so the result survives re-seeding rather than resting on
+one favourable draw.
 
 ## How it addresses the problem statement
 
