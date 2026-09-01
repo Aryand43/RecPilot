@@ -1,0 +1,44 @@
+{
+  "session": "runs/20260901_021318",
+  "run_id": "0015",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "per_seed": [
+    {
+      "GAUC": 0.6718,
+      "nDCG@5": 0.5384,
+      "primary": 0.6051
+    },
+    {
+      "GAUC": 0.6713,
+      "nDCG@5": 0.5378,
+      "primary": 0.6045
+    },
+    {
+      "GAUC": 0.6705,
+      "nDCG@5": 0.5373,
+      "primary": 0.6039
+    }
+  ],
+  "GAUC": {
+    "mean": 0.6711999999999999,
+    "std": 0.0005354126134736231,
+    "delta": 0.0037999999999999146
+  },
+  "nDCG@5": {
+    "mean": 0.5378333333333333,
+    "std": 0.00044969125210773183,
+    "delta": 0.0021333333333333204
+  },
+  "primary": {
+    "mean": 0.6044999999999999,
+    "std": 0.000489897948556627,
+    "delta": 0.0028999999999999027
+  },
+  "score_dataset": 0.0029666666666666175,
+  "survives_noise_floor": true,
+  "note": "The submitted checkpoint is seed 0, the validation-best, per the rule that the scored submission is the validation-best checkpoint. Its 0.6051 is the most favourable of three seeds; the seed-mean is 0.6045 with std 0.0005, and that mean still clears the 0.0016 noise floor."
+}

@@ -13,6 +13,22 @@ Every judging criterion below points at the file that evidences it.
 `score_dataset` (mean of the two metric deltas, per the judging formula) = **+0.003468**.
 Supplemental: NDCG@10 0.814178, Recall@50 0.999952.
 
+### Seed variance, stated plainly
+
+The submitted checkpoint is the validation-best one, as the rules require, and that
+checkpoint scores 0.605068. Re-fitting the same configuration under three seeds gives:
+
+| seed | primary |
+|---|---:|
+| 0 (submitted) | 0.6051 |
+| 1 | 0.6045 |
+| 2 | 0.6039 |
+
+Mean 0.6045, std 0.0005, so the headline figure is the most favourable of three draws.
+The seed-mean delta over baseline is +0.0029, which still clears the 0.0016 noise floor
+(2 sigma of the official baseline's own 5-seed spread). Full detail in
+`04_final_submission_results/metrics/champion_verification.json`.
+
 The scored submission is `04_final_submission_results/files/kuairand_pure.csv` -
 170,588 rows, `row_id,user_id,video_id,score`, validated by the unmodified Starter
 Kit checker.
