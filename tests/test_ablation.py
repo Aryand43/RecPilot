@@ -239,3 +239,31 @@ class BeamSkipTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WallClockClampTests(unittest.TestCase):
+    """A single slow iteration must not overshoot max_wall_s."""
+
+    def _budget(self, **kw):
+        from recpilot.config import Budget
+        return Budget(**{"max_wall_s": 21600.0, "train_timeout_s": 2400.0, **kw})
+
+    def test_uses_train_timeout_when_budget_is_ample(self):
+        from recpilot.agent.loop import iteration_timeout
+        self.assertEqual(iteration_timeout(self._budget(), elapsed=0.0), 2400.0)
+
+    def test_clamps_to_remaining_wall_clock(self):
+        from recpilot.agent.loop import iteration_timeout
+        # 21600 - 20400 = 1200s left, less than the 2400s train timeout
+        self.assertEqual(iteration_timeout(self._budget(), elapsed=20400.0), 1200.0)
+
+    def test_never_returns_less_than_the_floor(self):
+        from recpilot.agent.loop import iteration_timeout
+        self.assertEqual(iteration_timeout(self._budget(), elapsed=21599.0), 60.0)
+        self.assertEqual(iteration_timeout(self._budget(), elapsed=99999.0), 60.0)
+
+    def test_the_run_that_motivated_this_would_have_been_killed(self):
+        """Iteration 20 started at ~5.5h and ran ~2h, ending the session at 7.06h."""
+        from recpilot.agent.loop import iteration_timeout
+        started_at = 5.5 * 3600
+        self.assertAlmostEqual(iteration_timeout(self._budget(), started_at), 0.5 * 3600)

@@ -114,6 +114,16 @@ def _write_profile(session: Path, settings: Settings, synthetic: bool) -> dict:
     return prof
 
 
+def iteration_timeout(budget: Budget, elapsed: float, floor_s: float = 60.0) -> float:
+    """Per-iteration timeout: the train timeout, capped by the remaining wall-clock.
+
+    Never returns less than `floor_s`, so a nearly-exhausted budget still produces a
+    real attempt that is logged as a timeout rather than a zero-length no-op.
+    """
+    remaining = float(budget.max_wall_s) - float(elapsed)
+    return max(floor_s, min(float(budget.train_timeout_s), remaining))
+
+
 def stop_reason_if_any(state: dict[str, Any], budget: Budget, elapsed: float) -> Optional[str]:
     """Hard caps first; official ε/N convergence only after exploration_min_iters."""
     if state["n_attempts"] >= budget.max_iters:
@@ -321,7 +331,12 @@ def run_session(
         checkpoint_used = False
         children_kept: list[str] = []
         try:
-            run_in_subprocess(run_dir, budget.train_timeout_s, synthetic=synthetic)
+            # Clamp the subprocess to whatever wall-clock budget is left. The stop
+            # check only runs between iterations, so without this a single slow
+            # iteration overshoots max_wall_s by its own duration — one run under
+            # CPU contention ended at 7.06h against a 6h cap this way.
+            timeout_s = iteration_timeout(budget, time.time() - t0)
+            run_in_subprocess(run_dir, timeout_s, synthetic=synthetic)
             result = json.loads((run_dir / "result.json").read_text())
             metrics_valid = result["metrics_valid"]
             metrics_test = result.get("metrics_test")
