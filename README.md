@@ -1,8 +1,21 @@
 # RecPilot
 
+**KuaiRand-Pure: validation primary 0.605068 vs the official baseline 0.601600, an
+absolute delta of +0.003468 (`score_dataset` +0.003468), reached in 19 autonomous
+iterations, 0.655 h of CPU, 75,218 LLM tokens, and 0 manual interventions.**
+
+| KuaiRand-Pure validation | GAUC | nDCG@5 | primary |
+|---|---:|---:|---:|
+| Official FM baseline | 0.6674 | 0.5357 | 0.6016 |
+| **RecPilot agent champion** | **0.671777** | **0.538358** | **0.605068** |
+| absolute delta | **+0.004377** | **+0.002658** | **+0.003468** |
+
+Supplemental pair: NDCG@10 0.814178, Recall@50 0.999952. Submission index and the
+criterion-by-criterion evidence map: [`submission/README.md`](submission/README.md).
+
 Autonomous ML research agent for **TikTok TechJam 2026 Track 2** (KuaiRand-Pure within-user ranking).
 
-RecPilot is an autonomous ML research agent for within-user ranking on KuaiRand-Pure. It reproduces the official Factorization Machine, then runs a closed propose–train–evaluate–keep/rollback loop that only tries changes aligned with ranking metrics (pairwise/listwise loss, user-history crosses, multi-task auxiliaries)-not the static-feature and embedding-size dead ends the organizers already measured. Every iteration is logged as a hypothesis, operator diff, official GAUC/nDCG@5, and recovery action, so recommender research becomes a reproducible experiment loop instead of manual trial-and-error.
+RecPilot is an autonomous ML research agent for within-user ranking on KuaiRand-Pure. It reproduces the official Factorization Machine, then runs a closed propose, train, evaluate, keep-or-rollback loop over a curated operator catalog, selecting only on validation and never reading a test label. Its search policy is set by its own measurement: on this benchmark feature and hyperparameter gains transfer to the hidden test at about a third, while ensembling transfers at over 1x, so the agent spends its budget on decorrelated members rather than hyperparameter search. Operators it measured as dead are banned with the numbers that retired them. Every iteration logs a hypothesis, the applied config diff, the official GAUC/nDCG@5, and any recovery action.
 
 We **do not modify** [`kuairand-starter-kit/evaluate.py`](kuairand-starter-kit/evaluate.py). Row order for submissions is exactly `data.load()[split]`.
 
@@ -239,10 +252,3 @@ scripts/run_multiseed.py
 runs/                   # session artifacts (gitignored)
 ```
 
-## Video script (≈90s)
-
-1. Problem in one sentence: rank logged impressions per user so long-views rise to the top.
-2. Screen: `reproduce_baseline.py` matching official valid primary 0.6016.
-3. Screen: `events.jsonl` - propose → train → official GAUC/nDCG@5 → keep or rollback.
-4. One injected fault (timeout / bad op) and the automatic skip/cooldown.
-5. Table: FM vs RecPilot-best; N autonomous iters; 0 human interventions; test submission `--check` pass.
