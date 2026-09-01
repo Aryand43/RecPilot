@@ -30,6 +30,9 @@ KEY_FNS: dict[str, Any] = {
     "vtab": lambda d: (d["video_id"], d["tab"]),
 }
 STAT_NAMES = ("n", "lv", "clk", "play")
+COVISIT_NAMES = ("cov_sum", "cov_max")
+COVISIT_HIST = 40          # cap on a user's stored long-view history
+COVISIT_SHRINK = 20.0      # damps similarities estimated from few co-occurrences
 
 RAW_NUMERIC = ("duration_ms", "hour", "video_age", "server_width", "server_height",
                "music_type", "tab", "video_type", "upload_type", "tag1")
@@ -119,12 +122,66 @@ def _annotate(rows: Iterable[dict], side: dict) -> list[dict]:
     return out
 
 
+class _CoVisit:
+    """Item-item co-visitation over long-views, scored by shrunk cosine.
+
+    The FM factorises the user-item matrix at rank 16, which is global and smooth.
+    Co-visitation is local and full-rank: it says "people who long-viewed i also
+    long-viewed j" without forcing that through a low-rank bottleneck, so it carries
+    signal the FM structurally cannot express.
+
+    Updates are incremental, so the expanding window in `DenseEncoder.fit_train`
+    keeps train rows leak-free: a row is scored before its own event is folded in.
+    """
+
+    def __init__(self, shrink: float = COVISIT_SHRINK, max_hist: int = COVISIT_HIST):
+        self.pair: dict[tuple, float] = defaultdict(float)
+        self.item_n: dict[str, float] = defaultdict(float)
+        self.user_hist: dict[str, list] = defaultdict(list)
+        self.shrink = shrink
+        self.max_hist = max_hist
+
+    def add(self, rows: list[dict]) -> None:
+        for d in rows:
+            if not float(d.get("long_view", 0) or 0):
+                continue
+            v, u = d["video_id"], d["user_id"]
+            hist = self.user_hist[u]
+            for prev in hist:
+                if prev != v:
+                    self.pair[(prev, v) if prev < v else (v, prev)] += 1.0
+            hist.append(v)
+            if len(hist) > self.max_hist:
+                del hist[0]
+            self.item_n[v] += 1.0
+
+    def score(self, d: dict) -> tuple[float, float]:
+        """(sum, max) similarity of the candidate to the user's prior long-views."""
+        v = d["video_id"]
+        nv = self.item_n.get(v, 0.0)
+        if nv <= 0.0:
+            return 0.0, 0.0
+        total = best = 0.0
+        for i in self.user_hist.get(d["user_id"], ()):
+            if i == v:
+                continue                                  # never score an item against itself
+            c = self.pair.get((i, v) if i < v else (v, i), 0.0)
+            if c:
+                sim = c / (math.sqrt(nv * self.item_n[i]) + self.shrink)
+                total += sim
+                if sim > best:
+                    best = sim
+        return total, best
+
+
 class _Accumulator:
     """Per-key running (count, long_view, click, play-ratio) totals."""
 
-    def __init__(self) -> None:
+    def __init__(self, covisit: bool = True) -> None:
+        self.covisit = covisit
         self.t: dict[str, dict[tuple, list[float]]] = {k: defaultdict(lambda: [0.0] * 4)
                                                        for k in KEY_FNS}
+        self.cov = _CoVisit() if covisit else None
         self.prior_lv = 0.0
         self.prior_clk = 0.0
         self.n = 0.0
@@ -144,11 +201,14 @@ class _Accumulator:
             self.prior_lv += lv
             self.prior_clk += clk
             self.n += 1.0
+        if self.cov is not None:
+            self.cov.add(rows)
 
     def encode(self, rows: list[dict]) -> np.ndarray:
         plv = self.prior_lv / self.n if self.n else 0.34
         pclk = self.prior_clk / self.n if self.n else 0.30
-        X = np.empty((len(rows), len(KEY_FNS) * len(STAT_NAMES)), dtype=np.float32)
+        ncols = len(KEY_FNS) * len(STAT_NAMES) + len(COVISIT_NAMES)
+        X = np.empty((len(rows), ncols), dtype=np.float32)
         for i, d in enumerate(rows):
             c = 0
             for name, fn in KEY_FNS.items():
@@ -160,6 +220,7 @@ class _Accumulator:
                 X[i, c + 2] = (clk + pclk * SMOOTH) / den
                 X[i, c + 3] = (pr + 0.5 * SMOOTH) / den
                 c += 4
+            X[i, c], X[i, c + 1] = self.cov.score(d) if self.cov is not None else (0.0, 0.0)
         return X
 
 
@@ -167,7 +228,7 @@ def feature_names() -> list[str]:
     names = list(RAW_NUMERIC) + list(USER_COLS)
     for k in KEY_FNS:
         names += [f"{k}_{s}" for s in STAT_NAMES]
-    return names
+    return names + list(COVISIT_NAMES)
 
 
 class DenseEncoder:
@@ -178,9 +239,9 @@ class DenseEncoder:
     needs no outcome column on the rows it is given.
     """
 
-    def __init__(self, side: dict) -> None:
+    def __init__(self, side: dict, covisit: bool = True) -> None:
         self.side = side
-        self.acc = _Accumulator()
+        self.acc = _Accumulator(covisit=covisit)
 
     def _static_block(self, rows: list[dict]) -> np.ndarray:
         nuser = len(USER_COLS)
@@ -198,7 +259,9 @@ class DenseEncoder:
         by_date: dict[float, list[int]] = defaultdict(list)
         for i, d in enumerate(train):
             by_date[d["dayidx"]].append(i)
-        counts = np.zeros((len(train), len(KEY_FNS) * len(STAT_NAMES)), dtype=np.float32)
+        counts = np.zeros((len(train),
+                           len(KEY_FNS) * len(STAT_NAMES) + len(COVISIT_NAMES)),
+                          dtype=np.float32)
         for day in sorted(by_date):                  # prior dates only; a row never sees itself
             idx = by_date[day]
             rows = [train[i] for i in idx]

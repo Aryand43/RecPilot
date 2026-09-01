@@ -154,7 +154,8 @@ class AblationQueueTests(unittest.TestCase):
             tried.append(f"{parent}|tune_hparams:" + json.dumps({"lr": lr}, sort_keys=True))
         tried.append(f"{parent}|add_hard_negatives:" + json.dumps({"weight": 2.0}, sort_keys=True))
         tried.append(f"{parent}|add_sequence_interest_model:" + json.dumps({"seq_len": 20}, sort_keys=True))
-        for op in ("bag_seeds", "add_gbdt_ranker", "blend_fm_gbdt"):
+        for op in ("bag_seeds", "add_gbdt_ranker", "blend_fm_gbdt",
+                   "blend_add_bpr", "add_snapshot_ensemble"):
             tried.append(f"{parent}|{op}:" + json.dumps({}, sort_keys=True))
         state["tried"] = tried
         kids = propose_children(state, n=3)

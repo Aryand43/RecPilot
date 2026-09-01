@@ -56,13 +56,17 @@ class ModelConfig(BaseModel):
     train_frac: float = 1.0
     es_min_delta: float = 1e-5
     hard_neg_weight: float = 1.0
+    snapshot_k: int = 1         # >1 averages the top-K epoch checkpoints of one fit
     bag_seeds: int = 3          # seed_bag / blend: members to rank-average
     bag_base: str = "fm"        # single-model scorer each bag member trains
-    blend_alpha: float = -1.0   # blend: -1 tunes the weight on valid, else fixed
+    blend_alpha: float = -1.0   # 2-member blend: -1 fits the weight on valid, else fixed
+    blend_members: list[str] = ["fm", "gbdt"]   # blend: member scorers to mix
+    blend_grid_step: float = 0.05              # simplex resolution for the weights
     gbdt_iters: int = 400
     gbdt_lr: float = 0.06
     gbdt_leaves: int = 63
     gbdt_l2: float = 1.0
+    gbdt_covisit: bool = True   # item-item co-visitation columns in the tree ranker
 
 
 class FeatureConfig(BaseModel):

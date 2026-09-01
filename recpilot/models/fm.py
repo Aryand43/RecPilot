@@ -4,7 +4,9 @@ from __future__ import annotations
 import numpy as np
 
 from recpilot.config import ModelConfig
-from recpilot.models.base import TrainStats, early_stop_train, es_min_delta
+from recpilot.models.base import (
+    TrainStats, early_stop_train, es_min_delta, predict_snapshots,
+)
 from recpilot.paths import ensure_kit_on_path
 
 ensure_kit_on_path()
@@ -47,8 +49,9 @@ class PointwiseFM:
         self.train_stats = early_stop_train(
             m, epoch, Xva, yva, uva, cfg.epochs, cfg.patience, self.verbose,
             min_delta=es_min_delta(cfg),
+            snapshot_k=max(1, int(getattr(cfg, "snapshot_k", 1) or 1)),
         )
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        return self.model.predict(X)
+        return predict_snapshots(self.model, X, self.train_stats.snapshots)

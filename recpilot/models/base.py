@@ -1,7 +1,7 @@
 """Shared scorer interface and training helpers."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 import numpy as np
@@ -24,6 +24,9 @@ class TrainStats:
     best_primary: float = -1.0
     epochs_trained: int = 0
     best_epoch: int = 0
+    # Top-K epoch checkpoints by valid primary, best first. Snapshot ensembling
+    # averages their predictions: the extra members cost no extra training.
+    snapshots: list = field(default_factory=list)
 
 
 def es_min_delta(cfg: ModelConfig) -> float:
@@ -40,12 +43,16 @@ def early_stop_train(
     patience: int,
     verbose: bool = False,
     min_delta: float = 1e-5,
+    snapshot_k: int = 1,
 ) -> TrainStats:
     """Stop if valid primary has not improved by > min_delta for `patience` epochs.
 
-    Restores the best-epoch checkpoint for evaluation.
+    Restores the best-epoch checkpoint for evaluation. When `snapshot_k` > 1 the
+    top-K epochs by valid primary are also retained, so a caller can average their
+    predictions. Selection uses valid only; test is never consulted.
     """
     best, best_state, bad = -1.0, None, 0
+    kept: list[tuple[float, int, tuple]] = []
     best_epoch = 0
     last_loss = 0.0
     trained = 0
@@ -58,6 +65,11 @@ def early_stop_train(
                 f"  epoch {ep:2d} | loss {last_loss:.4f} | valid GAUC {va['GAUC']:.4f} "
                 f"nDCG@5 {va['nDCG@5']:.4f} primary {va['primary']:.4f}"
             )
+        if snapshot_k > 1:
+            kept.append((float(va["primary"]), ep,
+                         (model.V.copy(), model.W.copy(), np.float32(model.b))))
+            kept.sort(key=lambda t: -t[0])
+            del kept[snapshot_k:]
         if va["primary"] > best + min_delta:
             best, bad = va["primary"], 0
             best_epoch = ep
@@ -72,7 +84,25 @@ def early_stop_train(
         best_state = (model.V.copy(), model.W.copy(), np.float32(model.b))
         best_epoch = trained
     model.V, model.W, model.b = best_state
-    return TrainStats(best_primary=float(best), epochs_trained=trained, best_epoch=best_epoch)
+    snaps = [st for _, _, st in kept] if snapshot_k > 1 else []
+    return TrainStats(best_primary=float(best), epochs_trained=trained,
+                      best_epoch=best_epoch, snapshots=snaps)
+
+
+def predict_snapshots(model: FM, X: np.ndarray, snapshots: list) -> np.ndarray:
+    """Mean logit over retained epoch checkpoints; restores the model afterwards."""
+    if len(snapshots) < 2:
+        return model.predict(X)
+    saved = (model.V, model.W, model.b)
+    try:
+        total = None
+        for V, W, b in snapshots:
+            model.V, model.W, model.b = V, W, b
+            pred = np.asarray(model.predict(X), dtype=np.float64)
+            total = pred if total is None else total + pred
+        return total / float(len(snapshots))
+    finally:
+        model.V, model.W, model.b = saved
 
 
 def build_scorer(cfg: ModelConfig, dim: int, verbose: bool = False):

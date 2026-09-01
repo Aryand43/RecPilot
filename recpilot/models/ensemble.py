@@ -100,7 +100,7 @@ class GBDTRanker(_NeedsDataDir):
     def fit(self, enc: dict, raw_splits: dict, eval_users_valid: bool = True) -> "GBDTRanker":
         from sklearn.ensemble import HistGradientBoostingClassifier
         side = load_side_features(self.data_dir) if self.data_dir else {"video": {}, "user": {}}
-        self.enc = DenseEncoder(side)
+        self.enc = DenseEncoder(side, covisit=bool(getattr(self.cfg, "gbdt_covisit", True)))
         Xtr = self.enc.fit_train(raw_splits["train"])
         ytr = np.asarray(enc["train"][1], dtype=np.float32)
         cfg = self.cfg
@@ -134,55 +134,118 @@ class GBDTRanker(_NeedsDataDir):
         return feature_names()
 
 
-class BlendEnsemble(_NeedsDataDir):
-    """(1-a) * seed-bagged FM + a * tree ranker, both as within-user ranks.
+def simplex_grid(n: int, step: float = 0.1) -> list[tuple[float, ...]]:
+    """All weight vectors of length n on the simplex, in increments of `step`.
 
-    `a` is chosen on the validation split only, over a coarse grid. Test is never
-    consulted — the loop scores test after a keep, and that number feeds no decision.
+    n=2, step=0.05 -> 21 points; n=3, step=0.1 -> 66. Kept coarse on purpose: these
+    weights are fitted on the validation split, so the fewer effective degrees of
+    freedom the less there is to overfit.
     """
+    k = int(round(1.0 / step))
 
-    GRID = tuple(round(x, 2) for x in np.arange(0.0, 1.01, 0.05))
+    def rec(slots: int, left: int) -> list[tuple[int, ...]]:
+        if slots == 1:
+            return [(left,)]
+        return [(i,) + rest for i in range(left + 1) for rest in rec(slots - 1, left - i)]
+
+    return [tuple(c / k for c in combo) for combo in rec(n, k)]
+
+
+class BlendEnsemble(_NeedsDataDir):
+    """Weighted rank-blend of N decorrelated members, weights fitted on valid.
+
+    Members are named in `cfg.blend_members`: an FM-family name ("fm", "bpr",
+    "listwise", "multitask") becomes a seed-bagged scorer of that class, and "gbdt"
+    becomes the tree ranker. Every member is mapped to within-user ranks before
+    mixing, because only within-user order is scored and the members' raw scales
+    (FM logits vs tree probabilities) are not comparable.
+
+    The mixing weights are chosen by grid search on the validation split only. Test
+    is never consulted: the loop scores test after a keep, and that number feeds no
+    decision.
+    """
 
     def __init__(self, dim: int, cfg: ModelConfig, verbose: bool = False):
         self.dim, self.cfg, self.verbose = dim, cfg, verbose
-        self.bag = SeedBagFM(dim, cfg, verbose=verbose)
-        self.gbdt = GBDTRanker(dim, cfg, verbose=verbose)
-        self.alpha = float(getattr(cfg, "blend_alpha", -1.0))
+        names = [n.strip() for n in (getattr(cfg, "blend_members", None)
+                                     or ["fm", "gbdt"]) if n.strip()]
+        if len(names) < 2:
+            raise ValueError(f"blend needs >= 2 members, got {names}")
+        self.member_names = names
+        self.members: list[Any] = []
+        for name in names:
+            if name == "gbdt":
+                self.members.append(GBDTRanker(dim, cfg, verbose=verbose))
+            else:
+                c = cfg.model_copy(deep=True)
+                c.bag_base = name
+                self.members.append(SeedBagFM(dim, c, verbose=verbose))
+        self.weights: Optional[tuple[float, ...]] = None
+        fixed = float(getattr(cfg, "blend_alpha", -1.0))
+        if fixed >= 0 and len(names) == 2:
+            self.weights = (1.0 - fixed, fixed)      # back-compat with the 2-member knob
+        self.step = float(getattr(cfg, "blend_grid_step", 0.05) or 0.05)
         self.train_stats = TrainStats()
 
     def set_data_dir(self, path: Any) -> None:
         super().set_data_dir(path)
-        self.gbdt.set_data_dir(path)
+        for m in self.members:
+            if hasattr(m, "set_data_dir"):
+                m.set_data_dir(path)
+
+    def _ranks(self, X: np.ndarray, users: list, rows: list) -> list[np.ndarray]:
+        out = []
+        for m in self.members:
+            if hasattr(m, "predict_ensemble"):
+                s = m.predict_ensemble(X, users, rows)
+            elif hasattr(m, "predict_rows"):
+                s = m.predict_rows(rows)
+            else:
+                s = m.predict(X)
+            out.append(rank_within_user(users, np.asarray(s, dtype=np.float64)))
+        return out
 
     def fit(self, enc: dict, raw_splits: dict, eval_users_valid: bool = True) -> "BlendEnsemble":
-        self.bag.fit(enc, raw_splits)
-        self.gbdt.fit(enc, raw_splits)
-        Xva, yva, uva, _ = enc["valid"]
-        # Same masking the harness applies at scoring time: the alpha search must
-        # see exactly the rows a deployed scorer would see.
-        rows_va = mask_outcomes(raw_splits["valid"])
-        rb = self.bag.predict_ensemble(Xva, uva, rows_va)
-        rg = rank_within_user(uva, self.gbdt.predict_rows(rows_va))
-        if self.alpha < 0:
-            best = (-1.0, 0.0)
-            for a in self.GRID:
-                p = official_score(uva, yva, (1 - a) * rb + a * rg)["primary"]
-                if p > best[0]:
-                    best = (p, a)
-            self.alpha = float(best[1])
+        for name, m in zip(self.member_names, self.members):
+            m.fit(enc, raw_splits)
             if self.verbose:
-                print(f"  blend alpha={self.alpha:.2f} (valid primary {best[0]:.4f})")
+                print(f"  blend member {name} fitted")
+        Xva, yva, uva, _ = enc["valid"]
+        # Same masking the harness applies at scoring time: the weight search must
+        # see exactly the rows a deployed scorer would see.
+        ranks = self._ranks(Xva, uva, mask_outcomes(raw_splits["valid"]))
+
+        if self.weights is None:
+            step = self.step if len(self.members) == 2 else max(self.step, 0.1)
+            best = (-1.0, None)
+            for w in simplex_grid(len(self.members), step):
+                blended = sum(wi * r for wi, r in zip(w, ranks))
+                p = official_score(uva, yva, blended)["primary"]
+                if p > best[0]:
+                    best = (p, w)
+            self.weights = best[1]
+            if self.verbose:
+                print("  blend weights " + ", ".join(
+                    f"{n}={w:.2f}" for n, w in zip(self.member_names, self.weights))
+                    + f" (valid primary {best[0]:.4f})")
+
+        blended = sum(wi * r for wi, r in zip(self.weights, ranks))
         self.train_stats = TrainStats(
-            best_primary=float(official_score(uva, yva, (1 - self.alpha) * rb + self.alpha * rg)["primary"]),
-            epochs_trained=self.bag.train_stats.epochs_trained,
-            best_epoch=self.gbdt.train_stats.epochs_trained,
+            best_primary=float(official_score(uva, yva, blended)["primary"]),
+            epochs_trained=sum(int(getattr(getattr(m, "train_stats", None),
+                                           "epochs_trained", 0) or 0) for m in self.members),
+            best_epoch=len(self.members),
         )
         return self
 
+    @property
+    def alpha(self) -> float:
+        """Weight on the last member. Kept for the 2-member reporting path."""
+        return float(self.weights[-1]) if self.weights else -1.0
+
     def predict_ensemble(self, X: np.ndarray, users: list, rows: list) -> np.ndarray:
-        rb = self.bag.predict_ensemble(X, users, rows)
-        rg = rank_within_user(users, self.gbdt.predict_rows(rows))
-        return (1 - self.alpha) * rb + self.alpha * rg
+        assert self.weights is not None, "fit() first"
+        return sum(w * r for w, r in zip(self.weights, self._ranks(X, users, rows)))
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         raise TypeError("BlendEnsemble needs user ids and rows; call predict_ensemble(...)")

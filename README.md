@@ -104,8 +104,10 @@ python3 kuairand-starter-kit/submit.py --check --split test --data_dir ./KuaiRan
 | `add_multitask` | Shared-embedding aux heads on `is_click` / `is_like` |
 | `tune_hparams` | lr / l2 / batch around the **current-best** architecture (`k` stays 16) |
 | `bag_seeds` | Rank-average N seeds of the current-best config |
-| `add_gbdt_ranker` | Boosted tree over train-only count/rate features |
+| `add_gbdt_ranker` | Boosted tree over train-only count/rate features + item-item co-visitation |
 | `blend_fm_gbdt` | Rank-blend the bagged FM with the tree ranker; weight fitted on valid |
+| `blend_add_bpr` | Add a pairwise-loss member; weights on the simplex, fitted on valid |
+| `add_snapshot_ensemble` | Average the top-K epoch checkpoints of one fit (no extra training) |
 
 **Banned, each with the measurement that retired it:**
 
@@ -121,6 +123,58 @@ python3 kuairand-starter-kit/submit.py --check --split test --data_dir ./KuaiRan
 Sequence models stay reachable but are never prioritised: `add_sequence_interest_model`
 cost 1905s of wall-clock to return a rollback, and users average only 42 train
 impressions, so target attention has little to attend to.
+
+## Why ensembling and not more features
+
+The single most useful measurement this project produced is how differently two kinds
+of improvement survive the move from validation to the hidden test:
+
+| change | Δ valid | Δ test | transfers |
+|---|---|---|---|
+| champion vs official FM (features + lr) | +0.0021 | +0.0007 | **33%** |
+| tree blend vs champion (ensembling) | +0.0008 | +0.0015 | **188%** |
+
+Validation is one week; test is the ten days after it. Feature and hyperparameter
+gains are partly fitted to that week and mostly evaporate. Variance reduction is not,
+and survives intact. Every operator added after this measurement is a new *member*,
+not a new feature — and the planner is told this fact directly.
+
+A second measurement bounds how much is left in the log columns at all. Standalone
+within-user GAUC on validation:
+
+| signal | GAUC |
+|---|---|
+| item long-view rate (train-only) | 0.6387 |
+| session position | 0.5156 |
+| video duration | 0.5140 |
+| video age | 0.5140 |
+| hour of day | 0.4844 |
+
+The full FM reaches 0.6674, so item quality plus personalization is essentially the
+whole signal; a 63-feature gradient-boosted tree scores 0.6014 alone, barely under a
+five-field FM. The item-item co-visitation feature is the one addition that is not
+redundant: the FM factorises the user-item matrix at rank 16, while co-visitation is
+local and full-rank, so it expresses something the FM structurally cannot.
+
+## Robustness
+
+A healthy run reports zero errors, which demonstrates nothing about recovery. The
+loop is therefore exercised against induced failures:
+
+```bash
+python3 scripts/fault_injection_demo.py --max_iters 9
+```
+
+It forces a subprocess crash, a timeout, and an OOM-style kill into chosen iterations
+and asserts the log shows retry, cooldown and route-around with `n_human_interventions
+== 0`. It runs on synthetic data, writes to its own session directory, and is never
+part of a scored run.
+
+Two real failures shaped the harness. A subprocess that overran its budget under CPU
+contention from an unrelated process ended a run at 7.06h against a 6h cap, because
+the stop check only runs between iterations — `iteration_timeout` now clamps each
+subprocess to the remaining wall-clock. And the leak described below was caught by a
+guard that did not exist until it was needed.
 
 ## Leakage policy
 

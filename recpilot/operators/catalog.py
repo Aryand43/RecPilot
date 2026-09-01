@@ -20,6 +20,8 @@ OPERATORS = (
     "bag_seeds",
     "add_gbdt_ranker",
     "blend_fm_gbdt",
+    "blend_add_bpr",
+    "add_snapshot_ensemble",
 )
 
 BANNED = {
@@ -58,6 +60,8 @@ PRIORITY = [
     "bag_seeds",
     "add_gbdt_ranker",
     "blend_fm_gbdt",
+    "blend_add_bpr",
+    "add_snapshot_ensemble",
     "add_hard_negatives",
     "switch_loss_bpr",
     "add_multitask",
@@ -256,6 +260,21 @@ def apply_operator(parent: Settings, operator: str, params: dict[str, Any]) -> S
         cfg.model.name = "blend"
         cfg.model.bag_seeds = max(2, min(5, int(p.get("seeds", 3))))
         cfg.model.blend_alpha = float(p.get("alpha", -1.0))
+        return cfg
+
+    if operator == "blend_add_bpr":
+        # A third member with a pairwise loss: its errors are uncorrelated with the
+        # pointwise FM's, which is what a blend pays for.
+        cfg.model.name = "blend"
+        cfg.model.blend_members = ["fm", "bpr", "gbdt"]
+        cfg.model.blend_alpha = -1.0
+        cfg.model.bag_seeds = max(2, min(5, int(p.get("seeds", 3))))
+        return cfg
+
+    if operator == "add_snapshot_ensemble":
+        # Average the top-K epoch checkpoints of a single fit: variance reduction
+        # for no extra training.
+        cfg.model.snapshot_k = max(2, min(5, int(p.get("k", 3))))
         return cfg
 
     if operator == "retrain_full_data":

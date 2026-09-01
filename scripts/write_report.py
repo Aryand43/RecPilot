@@ -16,12 +16,18 @@ from recpilot.paths import BASELINE_SCORES  # noqa: E402
 DEVPOST_BLURB = (
     "RecPilot is an autonomous ML research agent for within-user ranking on KuaiRand-Pure. "
     "It reproduces the official Factorization Machine, then runs a closed "
-    "propose–train–evaluate–keep/rollback loop that only tries changes aligned with ranking "
-    "metrics (pairwise/listwise loss, user-history crosses, multi-task auxiliaries)—not the "
-    "static-feature and embedding-size dead ends the organizers already measured. Every "
-    "iteration is logged as a hypothesis, operator diff, official GAUC/nDCG@5, and recovery "
-    "action, so recommender research becomes a reproducible experiment loop instead of "
-    "manual trial-and-error."
+    "propose-train-evaluate-keep/rollback loop over a curated operator catalog, selecting "
+    "only on validation and never reading a test label. Its central finding is empirical and "
+    "reshaped its own search policy: on this benchmark, feature and hyperparameter gains "
+    "transfer from validation to the hidden test at about a third, while ensembling transfers "
+    "at over 1x. The agent therefore spends its budget on decorrelated members - seed bagging, "
+    "a gradient-boosted tree over train-only count and item-item co-visitation features, and a "
+    "pairwise-loss member, rank-blended with weights fitted on validation - rather than on "
+    "hyperparameter search. Operators it measured as dead are banned with the numbers that "
+    "retired them, including one that reached 0.8418 validation primary against a 0.8645 label "
+    "oracle by reading the scored row's own watch time; a leakage guard now makes that class of "
+    "mistake fail closed. Every iteration logs a hypothesis, the applied config diff, official "
+    "GAUC/nDCG@5, and any recovery action."
 )
 
 
