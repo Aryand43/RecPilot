@@ -55,7 +55,7 @@ def _hms(seconds) -> str:
     try:
         s = float(seconds)
     except (TypeError, ValueError):
-        return "—"
+        return "-"
     h, rem = divmod(int(s), 3600)
     m, sec = divmod(rem, 60)
     return f"{h}h {m:02d}m {sec:02d}s ({s:.0f}s)"
@@ -66,7 +66,7 @@ def _delta_rows(base: dict, ours: dict) -> list[str]:
     for m in ("GAUC", "nDCG@5"):
         b, o = base.get(m), ours.get(m)
         if b is None or o is None:
-            rows.append(f"| {m} | — | — | — |")
+            rows.append(f"| {m} | - | - | - |")
             continue
         d = float(o) - float(b)
         deltas.append(d)
@@ -109,7 +109,7 @@ def render(session: Path) -> str:
 
     def row(name, m):
         if not m:
-            return f"| {name} | — | — | — |"
+            return f"| {name} | - | - | - |"
         return (
             f"| {name} | {float(m.get('GAUC', float('nan'))):.4f} | "
             f"{float(m.get('nDCG@5', float('nan'))):.4f} | "
@@ -146,22 +146,22 @@ def render(session: Path) -> str:
         "",
         "| model | split | GAUC | nDCG@5 | primary |",
         "|---|---|---|---|---|",
-        f"| random | test | {official.get('random', {}).get('test', {}).get('GAUC', '—')} | "
-        f"{official.get('random', {}).get('test', {}).get('nDCG@5', '—')} | "
-        f"{official.get('random', {}).get('test', {}).get('primary', '—')} |",
-        f"| item pop | test | {official.get('item_popularity', {}).get('test', {}).get('GAUC', '—')} | "
-        f"{official.get('item_popularity', {}).get('test', {}).get('nDCG@5', '—')} | "
-        f"{official.get('item_popularity', {}).get('test', {}).get('primary', '—')} |",
-        f"| FM (official) | valid | {fm_v.get('GAUC', '—')} | {fm_v.get('nDCG@5', '—')} | {fm_v.get('primary', '—')} |",
-        f"| FM (official) | test | {fm_t.get('GAUC', '—')} | {fm_t.get('nDCG@5', '—')} | {fm_t.get('primary', '—')} |",
-        f"| oracle | test | {oracle_t.get('GAUC', '—')} | {oracle_t.get('nDCG@5', '—')} | {oracle_t.get('primary', '—')} |",
+        f"| random | test | {official.get('random', {}).get('test', {}).get('GAUC', '-')} | "
+        f"{official.get('random', {}).get('test', {}).get('nDCG@5', '-')} | "
+        f"{official.get('random', {}).get('test', {}).get('primary', '-')} |",
+        f"| item pop | test | {official.get('item_popularity', {}).get('test', {}).get('GAUC', '-')} | "
+        f"{official.get('item_popularity', {}).get('test', {}).get('nDCG@5', '-')} | "
+        f"{official.get('item_popularity', {}).get('test', {}).get('primary', '-')} |",
+        f"| FM (official) | valid | {fm_v.get('GAUC', '-')} | {fm_v.get('nDCG@5', '-')} | {fm_v.get('primary', '-')} |",
+        f"| FM (official) | test | {fm_t.get('GAUC', '-')} | {fm_t.get('nDCG@5', '-')} | {fm_t.get('primary', '-')} |",
+        f"| oracle | test | {oracle_t.get('GAUC', '-')} | {oracle_t.get('nDCG@5', '-')} | {oracle_t.get('primary', '-')} |",
         "",
         "## RecPilot-best (selected on valid only)",
         "",
         f"- Best run: `{best_id}`",
         f"- Baseline reproduced: {state.get('baseline_reproduced')}",
         f"- Stop reason: `{state.get('stop_reason')}`",
-        f"- Exploration min iters: {state.get('exploration_min_iters', stop.get('exploration_min_iters', '—'))}",
+        f"- Exploration min iters: {state.get('exploration_min_iters', stop.get('exploration_min_iters', '-'))}",
         f"- Attempts: **{state.get('n_attempts', 0)}**",
         f"- Exploration complete / convergence eligible: {state.get('exploration_complete')} / {state.get('convergence_eligible')}",
         f"- Stop phase: {'after official convergence became eligible' if state.get('convergence_eligible') else 'during exploration (ε/N not yet allowed)'}",
@@ -199,18 +199,18 @@ def render(session: Path) -> str:
         "the run and frozen at session start; `session_start.search_space.catalog_sha256` in "
         "`events.jsonl` pins the exact search space the loop ran against, and nothing re-reads it "
         "mid-run. Designing the agent's action space is building the agent, not intervening in "
-        "its run — no operator, hyperparameter or stopping decision was made by a human once the "
+        "its run - no operator, hyperparameter or stopping decision was made by a human once the "
         "session began.",
         "",
         "## Data and leakage policy",
         "",
-        f"- Training data: {policy.get('train_split_only', '—')}",
-        f"- Validation: {policy.get('valid_split', '—')}",
-        f"- Test split: {policy.get('test_split', '—')}",
+        f"- Training data: {policy.get('train_split_only', '-')}",
+        f"- Validation: {policy.get('valid_split', '-')}",
+        f"- Test split: {policy.get('test_split', '-')}",
         f"- Test labels read during the run: **{bool(policy.get('report_test_metrics'))}**",
         f"- `log_random_4_22_to_5_08_pure.csv` used for training: **{bool(policy.get('log_random_used'))}**",
         f"- KuaiRand-1k / 27k used as auxiliary data: **{bool(policy.get('kuairand_1k_27k_used'))}**",
-        f"- Scored-row outcome columns: {policy.get('scored_row_outcomes', '—')}",
+        f"- Scored-row outcome columns: {policy.get('scored_row_outcomes', '-')}",
         "",
         "The `add_watch_time_ranker` operator was removed and permanently banned after it was "
         "found to rank each row by that row's own `play_time_ms`. `long_view` is a deterministic "
@@ -219,11 +219,11 @@ def render(session: Path) -> str:
         "",
         "## Declared stopping rule (fixed before the run)",
         "",
-        f"- epsilon = {rule.get('converge_eps', '—')}, N = {rule.get('converge_n', '—')}, "
-        f"minimum iterations before stopping = {rule.get('min_iterations_before_stop', '—')}",
-        f"- Hard caps: {rule.get('max_iters', '—')} iterations, {rule.get('max_wall_s', '—')}s wall-clock",
-        f"- Scored checkpoint: {rule.get('scored_checkpoint', '—')}",
-        f"- Window: {rule.get('window', '—')}",
+        f"- epsilon = {rule.get('converge_eps', '-')}, N = {rule.get('converge_n', '-')}, "
+        f"minimum iterations before stopping = {rule.get('min_iterations_before_stop', '-')}",
+        f"- Hard caps: {rule.get('max_iters', '-')} iterations, {rule.get('max_wall_s', '-')}s wall-clock",
+        f"- Scored checkpoint: {rule.get('scored_checkpoint', '-')}",
+        f"- Window: {rule.get('window', '-')}",
         "",
         "## Autonomy and robustness",
         "",
@@ -233,7 +233,7 @@ def render(session: Path) -> str:
         f"- Auto-recoveries: **{state.get('n_recoveries', 0)}**",
         f"- Human interventions: **{state.get('n_human_interventions', 0)}** (target: 0 after `run_agent.py`)",
         f"- Tokens used: {state.get('tokens_used', 0)}",
-        f"- Wall clock (session_stop): {stop.get('wall_s', '—')}s",
+        f"- Wall clock (session_stop): {stop.get('wall_s', '-')}s",
         "",
         "Keep/rollback uses **valid primary** only. Test numbers are holdout.",
         "",
@@ -244,7 +244,7 @@ def render(session: Path) -> str:
     ]
     for e in iters:
         mv = e.get("metrics_valid") or {}
-        prim = f"{mv['primary']:.4f}" if "primary" in mv else "—"
+        prim = f"{mv['primary']:.4f}" if "primary" in mv else "-"
         hyp = (e.get("hypothesis") or "").replace("|", "/").replace("\n", " ")
         if len(hyp) > 80:
             hyp = hyp[:77] + "..."
@@ -254,7 +254,7 @@ def render(session: Path) -> str:
             dec = f"{dec} ({'timeout' if 'timeout' in str(err) else 'error'})"
         lines.append(
             f"| {e.get('run_id')} | `{e.get('operator')}` | {prim} | {dec} | "
-            f"{e.get('seconds', '—')} | {hyp} |"
+            f"{e.get('seconds', '-')} | {hyp} |"
         )
     lines += ["", "## Applied change per iteration", "",
               "RecPilot's search space is a catalog of operators over a typed config, so the "

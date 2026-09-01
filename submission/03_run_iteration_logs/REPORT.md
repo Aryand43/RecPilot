@@ -37,7 +37,7 @@ Primary score = mean(GAUC, nDCG@5) from the official, unmodified `evaluate.py`.
 | official FM valid | 0.6674 | 0.5357 | 0.6016 |
 | RecPilot-best valid | 0.6718 | 0.5384 | 0.6051 |
 | official FM test | 0.6610 | 0.5282 | 0.5946 |
-| RecPilot-best test (holdout) | — | — | — |
+| RecPilot-best test (holdout) | - | - | - |
 
 ### Absolute delta over the official baseline (validation)
 
@@ -61,7 +61,7 @@ Scored per the judging formula: `delta(m) = score_agent(m) - score_baseline(m)`,
 ## Autonomy accounting
 
 - Manual interventions **during** the scored run: **0**.
-- The operator catalog, the leakage guard and the stopping rule were authored before the run and frozen at session start; `session_start.search_space.catalog_sha256` in `events.jsonl` pins the exact search space the loop ran against, and nothing re-reads it mid-run. Designing the agent's action space is building the agent, not intervening in its run — no operator, hyperparameter or stopping decision was made by a human once the session began.
+- The operator catalog, the leakage guard and the stopping rule were authored before the run and frozen at session start; `session_start.search_space.catalog_sha256` in `events.jsonl` pins the exact search space the loop ran against, and nothing re-reads it mid-run. Designing the agent's action space is building the agent, not intervening in its run - no operator, hyperparameter or stopping decision was made by a human once the session began.
 
 ## Data and leakage policy
 

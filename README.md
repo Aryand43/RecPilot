@@ -2,7 +2,7 @@
 
 Autonomous ML research agent for **TikTok TechJam 2026 Track 2** (KuaiRand-Pure within-user ranking).
 
-RecPilot is an autonomous ML research agent for within-user ranking on KuaiRand-Pure. It reproduces the official Factorization Machine, then runs a closed propose–train–evaluate–keep/rollback loop that only tries changes aligned with ranking metrics (pairwise/listwise loss, user-history crosses, multi-task auxiliaries)—not the static-feature and embedding-size dead ends the organizers already measured. Every iteration is logged as a hypothesis, operator diff, official GAUC/nDCG@5, and recovery action, so recommender research becomes a reproducible experiment loop instead of manual trial-and-error.
+RecPilot is an autonomous ML research agent for within-user ranking on KuaiRand-Pure. It reproduces the official Factorization Machine, then runs a closed propose–train–evaluate–keep/rollback loop that only tries changes aligned with ranking metrics (pairwise/listwise loss, user-history crosses, multi-task auxiliaries)-not the static-feature and embedding-size dead ends the organizers already measured. Every iteration is logged as a hypothesis, operator diff, official GAUC/nDCG@5, and recovery action, so recommender research becomes a reproducible experiment loop instead of manual trial-and-error.
 
 We **do not modify** [`kuairand-starter-kit/evaluate.py`](kuairand-starter-kit/evaluate.py). Row order for submissions is exactly `data.load()[split]`.
 
@@ -36,7 +36,7 @@ tar xzf KuaiRand-Pure.tar.gz
 # expect ./KuaiRand-Pure/data/log_standard_*.csv
 ```
 
-Optional: set `OPENAI_API_KEY` (and optionally `configs/default.yaml` → `llm.base_url` / `llm.model`) for the LLM planner. Without a key RecPilot uses a **heuristic planner** over the same operator catalog — the loop still runs unattended.
+Optional: set `OPENAI_API_KEY` (and optionally `configs/default.yaml` → `llm.base_url` / `llm.model`) for the LLM planner. Without a key RecPilot uses a **heuristic planner** over the same operator catalog - the loop still runs unattended.
 
 ## Commands
 
@@ -113,9 +113,9 @@ python3 kuairand-starter-kit/submit.py --check --split test --data_dir ./KuaiRan
 
 | operator | why |
 |---|---|
-| `add_watch_time_ranker` | Label leakage — see [Leakage policy](#leakage-policy) |
+| `add_watch_time_ranker` | Label leakage - see [Leakage policy](#leakage-policy) |
 | `switch_loss_listwise` | 0.5967 and 0.5989 valid vs a 0.6036 champion. Users average 5.6 impressions, so softmax-CE groups carry almost no ranking signal |
-| `blend_item_pop` | Redundant with the FM's own `video_id` first-order weight. Alphas 0.05/0.1/0.2 gave 0.6036/0.6034/0.6032 — best case an exact tie |
+| `blend_item_pop` | Redundant with the FM's own `video_id` first-order weight. Alphas 0.05/0.1/0.2 gave 0.6036/0.6034/0.6032 - best case an exact tie |
 | `add_cwm_static_fields` | Organizers measured it: no gain |
 | `increase_k` | Organizers measured k=8/16/32: capacity is not the bottleneck |
 | `user_only_first_order` | User-constant terms cannot change within-user order |
@@ -137,7 +137,7 @@ of improvement survive the move from validation to the hidden test:
 Validation is one week; test is the ten days after it. Feature and hyperparameter
 gains are partly fitted to that week and mostly evaporate. Variance reduction is not,
 and survives intact. Every operator added after this measurement is a new *member*,
-not a new feature — and the planner is told this fact directly.
+not a new feature - and the planner is told this fact directly.
 
 A second measurement bounds how much is left in the log columns at all. Standalone
 within-user GAUC on validation:
@@ -172,7 +172,7 @@ part of a scored run.
 
 Two real failures shaped the harness. A subprocess that overran its budget under CPU
 contention from an unrelated process ended a run at 7.06h against a 6h cap, because
-the stop check only runs between iterations — `iteration_timeout` now clamps each
+the stop check only runs between iterations - `iteration_timeout` now clamps each
 subprocess to the remaining wall-clock. And the leak described below was caught by a
 guard that did not exist until it was needed.
 
@@ -182,7 +182,7 @@ guard that did not exist until it was needed.
 split every row with `play_time_ms > 18000` has `long_view == 1`. Any scorer that reads a
 post-impression column off the row it is ranking is therefore reading the label.
 
-An early operator, `add_watch_time_ranker`, did exactly that — it scored each row by its own
+An early operator, `add_watch_time_ranker`, did exactly that - it scored each row by its own
 `log1p(play_time_ms)` and reached **0.8418 valid primary against a 0.8645 label oracle**. It has
 been removed, and the failure is now structural rather than a matter of care:
 
@@ -201,7 +201,7 @@ every run log:
 |---|---|
 | Train only on 20220408–20220421 | `data.SPLITS`; `log_random_*.csv` is never opened |
 | No KuaiRand-1k / 27k as auxiliary data | not downloaded, not referenced |
-| No test labels in any decision | `budget.report_test_metrics: false` — test rows are scored to write `submission.csv`, their labels are never read. Selection, early stopping and the blend weight are validation-only |
+| No test labels in any decision | `budget.report_test_metrics: false` - test rows are scored to write `submission.csv`, their labels are never read. Selection, early stopping and the blend weight are validation-only |
 
 ## Architecture
 
@@ -229,7 +229,7 @@ data.load / rich load  →  encode (kit or extra fields)  →  model zoo
 ## Layout
 
 ```
-kuairand-starter-kit/   # official kit — do not edit evaluate.py
+kuairand-starter-kit/   # official kit - do not edit evaluate.py
 recpilot/               # agent, harness, model zoo, operators
 configs/default.yaml
 scripts/reproduce_baseline.py
@@ -243,6 +243,6 @@ runs/                   # session artifacts (gitignored)
 
 1. Problem in one sentence: rank logged impressions per user so long-views rise to the top.
 2. Screen: `reproduce_baseline.py` matching official valid primary 0.6016.
-3. Screen: `events.jsonl` — propose → train → official GAUC/nDCG@5 → keep or rollback.
+3. Screen: `events.jsonl` - propose → train → official GAUC/nDCG@5 → keep or rollback.
 4. One injected fault (timeout / bad op) and the automatic skip/cooldown.
 5. Table: FM vs RecPilot-best; N autonomous iters; 0 human interventions; test submission `--check` pass.

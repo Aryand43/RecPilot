@@ -20,13 +20,13 @@ Designing the agent's action space is building the agent, not intervening in its
 | **human interventions** | **0** |
 
 The run stopped on `catalog_exhausted`: the planner could not construct any untried
-(parent, operator, params) combination. That is an honest stop — the search space was
-genuinely explored — and it left 125k of the 200k token budget unused.
+(parent, operator, params) combination. That is an honest stop - the search space was
+genuinely explored - and it left 125k of the 200k token budget unused.
 
 ## Induced-failure evidence
 
 A healthy run reports few errors, which demonstrates little about recovery. The same
 loop was therefore driven against injected failures (`scripts/fault_injection_demo.py`)
-— a subprocess crash, a timeout, and an OOM-style kill. See `fault_injection/FAULTS.md`.
+- a subprocess crash, a timeout, and an OOM-style kill. See `fault_injection/FAULTS.md`.
 Faults are injected by patching `run_in_subprocess` inside that script only; the agent
 contains no fault-injection code.

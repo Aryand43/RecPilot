@@ -79,4 +79,4 @@ def _fmt(x: Any) -> str:
     try:
         return f"{float(x):.6f}"
     except (TypeError, ValueError):
-        return "—"
+        return "-"

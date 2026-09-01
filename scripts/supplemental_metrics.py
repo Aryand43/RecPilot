@@ -7,7 +7,7 @@ is the authority and is never modified; these are reported *in addition*, so the
 submission carries whichever pair the portal asks for.
 
 Recall@50 is near 1.0 for every model on this split because users average ~5.6
-logged impressions, far under 50 — it is reported for completeness, not as a
+logged impressions, far under 50 - it is reported for completeness, not as a
 discriminating metric.
 
 Reads a submission CSV plus the split's labels. Scoring predictions after a run

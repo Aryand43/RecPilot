@@ -31,7 +31,7 @@ def results_table(state: dict, official: dict) -> str:
     for m in ("GAUC", "nDCG@5"):
         b, o = fm.get(m), ours.get(m)
         if b is None or o is None:
-            rows.append(f"| {m} | — | — | — |")
+            rows.append(f"| {m} | - | - | - |")
             continue
         deltas.append(float(o) - float(b))
         rows.append(f"| {m} | {float(b):.4f} | {float(o):.4f} | {float(o) - float(b):+.4f} |")
@@ -74,7 +74,7 @@ def main() -> int:
         if line.strip() and json.loads(line).get("event") == "session_stop":
             stop = json.loads(line)
 
-    summary = f"""# KuaiRand-Pure — final submission
+    summary = f"""# KuaiRand-Pure - final submission
 
 Source session: `{session.name}` (agent run, unedited artifacts copied verbatim).
 
@@ -90,7 +90,7 @@ test-split row in `data.load()['test']` order, validated with the kit's `submit.
 | | |
 |---|---|
 | LLM tokens (input + output) | {state.get('tokens_used', 0)} |
-| Agent wall-clock | {stop.get('wall_s', '—')}s |
+| Agent wall-clock | {stop.get('wall_s', '-')}s |
 | Iterations used | {state.get('n_attempts', 0)} / {(start.get('stopping_rule') or {}).get('max_iters', 50)} |
 | GPU-hours | 0 (CPU only) |
 

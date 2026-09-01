@@ -1,4 +1,4 @@
-# RecPilot — autonomous ML research agent for KuaiRand-Pure
+# RecPilot - autonomous ML research agent for KuaiRand-Pure
 
 ## What it does
 
@@ -26,7 +26,7 @@ told this directly, and the operator ladder was reordered so decorrelated member
 tried before hyperparameter search.
 
 A second measurement bounds the task: scoring the test split with each video's *true*
-test-period long-view rate — cheating — reaches only 0.6095 primary, and 18.9% of
+test-period long-view rate - cheating - reaches only 0.6095 primary, and 18.9% of
 repeated (user, video) pairs flip their label. The published 0.8645 "oracle" is
 unreachable by construction because it reads the answer key. Against the attainable
 ceiling we are at roughly 91%.
@@ -44,4 +44,4 @@ scorer sees a validation or test row, so this class of mistake fails closed.
 - Development: VS Code, Claude Code, git
 - API: OpenAI `gpt-4o-mini` as the planner (75,218 input+output tokens)
 - Libraries: numpy, scikit-learn (HistGradientBoosting), pydantic, PyYAML
-- Data: KuaiRand-Pure only — train split 20220408–20220421. No external data.
+- Data: KuaiRand-Pure only - train split 20220408–20220421. No external data.
